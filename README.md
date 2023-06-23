@@ -1,3 +1,3 @@
 # QA Decontextualization
 
-Code and data coming soon!
+Code and data are coming soon!
