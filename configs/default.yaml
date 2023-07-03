@@ -1,0 +1,11 @@
+qgen:
+    model_name: "text-davinci-003"
+    max_questions: 3
+    template: "templates/qgen.yaml"
+qa:
+    retriever: null  # "dense" for contriever or "tfidf" for BM25
+    model_name: "gpt4"
+    template: "templates/qa.yaml"
+synth:
+    model_name: "text-davinci-003"
+    template: "templates/synth.yaml"
