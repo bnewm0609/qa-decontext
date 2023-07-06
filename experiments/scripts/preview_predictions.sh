@@ -1,0 +1,1 @@
+jq "{y_gold: .y_gold, y_hat: .y_hat}" $1/predictions.json
