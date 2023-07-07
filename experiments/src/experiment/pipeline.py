@@ -7,25 +7,24 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Optional
 
+import decontext_exp.pipeline as pipeline
 import numpy as np
+from decontext_exp.clarification_metric import jaccard_sentence
+from decontext_exp.data import Dataset
+from decontext_exp.experiment.experiment_runner import ExperimentRunner
+from decontext_exp.utils import Predictions, get_prediction_save_dir
 from metrics import load_metrics
 from omegaconf import DictConfig
 from pytorch_lightning import LightningModule
 
-import contrastive_tldrs.pipeline as pipeline
-from contrastive_tldrs.clarification_metric import jaccard_sentence
-from contrastive_tldrs.data import Dataset
-from contrastive_tldrs.experiment.experiment_runner import ExperimentRunner
-from contrastive_tldrs.utils import Predictions, get_prediction_save_dir
-
 
 class PipelineExperimentRunner(ExperimentRunner):
     """Wrapper for running pipeline experiments.
-    
+
     Supports experiments that combines question-generation, question-answering, and rewriting to perform
     decontextualization. This wrapper also makes it easy to swap out generated data for gold data to use
     for subsequent pipeline components.
-    
+
     Attributes:
         [super class's attributes]
         steps_to_run: Which steps of the pipeline have to be run. If gold data is being used in place of
@@ -39,7 +38,9 @@ class PipelineExperimentRunner(ExperimentRunner):
 
         self.steps_to_run = pipeline.load_steps_to_run(self.args)
 
-    def _predict(self, args: DictConfig, dataset: Dataset, model: LightningModule) -> Predictions:
+    def _predict(
+        self, args: DictConfig, dataset: Dataset, model: LightningModule
+    ) -> Predictions:
         """Run inference on a set of examples.
 
         Run each step in `self.steps_to_run` on each of the examples. Currently, the examples are not
@@ -64,7 +65,10 @@ class PipelineExperimentRunner(ExperimentRunner):
                 pipeline.question_generation(args, paper_snippet)
 
             # Retriever is missing if e.g. we're inputting the entire paper to GPT4
-            if "qa-retrieval" in self.steps_to_run and args.model.qa.retriever is not None:
+            if (
+                "qa-retrieval" in self.steps_to_run
+                and args.model.qa.retriever is not None
+            ):
                 pipeline.run_retrieval(args, paper_snippet)
 
             if "qa-answers" in self.steps_to_run:
@@ -76,23 +80,33 @@ class PipelineExperimentRunner(ExperimentRunner):
                 pipeline.synthesize(args, paper_snippet)
 
             # Save the final paper snippet:
-            with open(Path(args.results_path) / "paper_snippet.json", "w") as f:
+            with open(
+                Path(args.results_path) / "paper_snippet.json", "w"
+            ) as f:
                 # dump the whole dataclass
-                json.dump(dataclasses.asdict(paper_snippet), f, ensure_ascii=False)
+                json.dump(
+                    dataclasses.asdict(paper_snippet), f, ensure_ascii=False
+                )
 
         # collect all of the results into one list[str]
-        prediction_paths = glob.glob(results_path_base + "/*/paper_snippet.json")
+        prediction_paths = glob.glob(
+            results_path_base + "/*/paper_snippet.json"
+        )
         all_predictions: list[str] = []
         for prediction_path in prediction_paths:
             with open(prediction_path) as f:
-                all_predictions.extend([json.loads(line)["decontextualized_snippet"] for line in f])
+                all_predictions.extend(
+                    [
+                        json.loads(line)["decontextualized_snippet"]
+                        for line in f
+                    ]
+                )
 
         return Predictions(all_predictions)
 
-
     def evaluate(self, args: DictConfig, split: str) -> None:
         """Run evaluation on a set of predictions.
-        
+
         Run evaluations based on the given metrics on both the final outputs AND on the intermediate outputs.
         For example, if we perform:
         * question generation: calculate question precision/recall/F1
@@ -120,7 +134,9 @@ class PipelineExperimentRunner(ExperimentRunner):
 
         if not args.model.qgen.use_gold:
             # evaluate question generation
-            paper_snippet_files = glob.glob(f"{args.results_path}/*/paper_snippet.json")
+            paper_snippet_files = glob.glob(
+                f"{args.results_path}/*/paper_snippet.json"
+            )
             paper_snippets = {}
             for paper_snippet in paper_snippet_files:
                 with open(paper_snippet) as f:
@@ -136,12 +152,18 @@ class PipelineExperimentRunner(ExperimentRunner):
                 if pred_snippet is None:
                     continue
 
-                tgt_q_matches = [False for _ in tgt_snippet["questions"].values()]
+                tgt_q_matches = [
+                    False for _ in tgt_snippet["questions"].values()
+                ]
 
                 num_targets = len(tgt_snippet["questions"].values())
                 num_preds = len(pred_snippet["questions"].values())
-                for pred_i, pred_q in enumerate(pred_snippet["questions"].values()):
-                    for tgt_i, tgt_q in enumerate(tgt_snippet["questions"].values()):
+                for pred_i, pred_q in enumerate(
+                    pred_snippet["questions"].values()
+                ):
+                    for tgt_i, tgt_q in enumerate(
+                        tgt_snippet["questions"].values()
+                    ):
                         if jaccard_sentence(pred_q, tgt_q) > 0.5:
                             tgt_q_matches[tgt_i] = True
 
@@ -163,7 +185,9 @@ class PipelineExperimentRunner(ExperimentRunner):
             # evaluate retrieval (bc we're using the gold questions)
 
             # load in the retrieval results
-            retrieval_result_files = glob.glob(f"{args.results_path}/*/qa/retrieval_results.jsonl")
+            retrieval_result_files = glob.glob(
+                f"{args.results_path}/*/qa/retrieval_results.jsonl"
+            )
 
             # calculate recall @3 here rather than in metrics
             docs_by_qid = defaultdict(list)
@@ -182,13 +206,19 @@ class PipelineExperimentRunner(ExperimentRunner):
 
             # now calculate recall@k
             ks: dict[int, list[float]] = {3: [], 5: [], 10: []}
-            ks_no_context_or_abstract: dict[int, list[float]] = {3: [], 5: [], 10: []}
+            ks_no_context_or_abstract: dict[int, list[float]] = {
+                3: [],
+                5: [],
+                10: [],
+            }
             mrrs: list[float] = []
             mrrs_no_ctx_abs: list[float] = []
             for target_snippet in target_snippets:
                 gold_docs = target_snippet["evidence"]
                 for qid, evidence in gold_docs.items():
-                    pred_evidence = docs_by_qid[f'{target_snippet["idx"]}.{qid}']
+                    pred_evidence = docs_by_qid[
+                        f'{target_snippet["idx"]}.{qid}'
+                    ]
 
                     # calculate recall@k AND recall@k where we ignore retrieving the abstract
                     # or context snippet because these are always included in the QA prompt anyway.
@@ -198,7 +228,8 @@ class PipelineExperimentRunner(ExperimentRunner):
                         e["paragraph"]
                         for e in evidence
                         if e["section"].lower() != "abstract"
-                        and e["paragraph"] != target_snippet["context_paragraph"]
+                        and e["paragraph"]
+                        != target_snippet["context_paragraph"]
                     ]
 
                     for k in ks:
@@ -212,7 +243,8 @@ class PipelineExperimentRunner(ExperimentRunner):
 
                         if gold_evidence_not_context_or_abstract:
                             r_k_noctxabs = len(
-                                set(pred_evidence[:k]) & set(gold_evidence_not_context_or_abstract)
+                                set(pred_evidence[:k])
+                                & set(gold_evidence_not_context_or_abstract)
                             ) / len(set(gold_evidence_not_context_or_abstract))
                             ks_no_context_or_abstract[k].append(r_k_noctxabs)
 
@@ -232,9 +264,12 @@ class PipelineExperimentRunner(ExperimentRunner):
                             continue
                         mrrs_no_ctx_abs.append(1.0 / rank)
 
-            results["retrieval_r@k"] = {str(k): np.mean(rs) for k, rs in ks.items()}
+            results["retrieval_r@k"] = {
+                str(k): np.mean(rs) for k, rs in ks.items()
+            }
             results["retrieval_r@k_no_ctx_abs"] = {
-                str(k): np.mean(rs) for k, rs in ks_no_context_or_abstract.items()
+                str(k): np.mean(rs)
+                for k, rs in ks_no_context_or_abstract.items()
             }
             results["retrieval_mrr"] = {
                 "mrr_mean": np.mean(mrrs),
@@ -247,7 +282,9 @@ class PipelineExperimentRunner(ExperimentRunner):
         if not args.model.qa.use_gold_answers:  # and args.model.qgen.use_gold:
             # evaluate qa
             # load in the predicted snippets
-            paper_snippet_files = glob.glob(f"{args.results_path}/*/paper_snippet.json")
+            paper_snippet_files = glob.glob(
+                f"{args.results_path}/*/paper_snippet.json"
+            )
             paper_snippets = {}
             for paper_snippet in paper_snippet_files:
                 with open(paper_snippet) as f:
@@ -266,7 +303,9 @@ class PipelineExperimentRunner(ExperimentRunner):
 
             metrics = load_metrics(args.model.qa.get("metrics", []))
             for metric in metrics:
-                results[f"qa_{metric.name}"] = metric.evaluate(predictions_qa, targets_qa, None)
+                results[f"qa_{metric.name}"] = metric.evaluate(
+                    predictions_qa, targets_qa, None
+                )
 
         # evaluate final synthesis regardless of what else we evaluate
         predictions: list[str]

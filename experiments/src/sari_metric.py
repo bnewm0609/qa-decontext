@@ -141,13 +141,17 @@ def _get_raw_sari_score(source_ids, prediction_ids, list_of_targets):
     # DEL.
     source_not_prediction_counts = source_counts - prediction_counts
     source_not_target_counts = source_counts - weighted_target_counts
-    del_tp = sum((source_not_prediction_counts & source_not_target_counts).values())
+    del_tp = sum(
+        (source_not_prediction_counts & source_not_target_counts).values()
+    )
     del_fp = sum(source_not_prediction_counts.values()) - del_tp
     del_fn = sum(source_not_target_counts.values()) - del_tp
 
     # ADD.
     added_to_prediction_counts = prediction_counts - source_counts
-    add_tp = sum((added_to_prediction_counts & weighted_target_counts).values())
+    add_tp = sum(
+        (added_to_prediction_counts & weighted_target_counts).values()
+    )
     add_fp = sum(added_to_prediction_counts.values()) - add_tp
     add_fn = sum((weighted_target_counts - source_counts).values()) - add_tp
 
@@ -204,7 +208,7 @@ def _compute_raw_sari_score(original, pred, references, tokenizer):
 
 def process_annotation(annotation_dict, allow_single_annotations=False):
     """Process annotation dictionary to generate references.
-    
+
     Not all annotations will be a reference set to which prediction will be
     evaluated against. The median annotation will reserved to approximate human
     performance. In case there's only one reference annotation, the
@@ -233,10 +237,13 @@ def process_annotation(annotation_dict, allow_single_annotations=False):
         annotations = annotation_dict[ex_id]
         if not annotations:
             raise ValueError(
-                "Empty annotations encountered while processing " "reference annotations."
+                "Empty annotations encountered while processing "
+                "reference annotations."
             )
         not_impossible = [
-            get_sent(label) for label in annotations if label.category != "IMPOSSIBLE"
+            get_sent(label)
+            for label in annotations
+            if label.category != "IMPOSSIBLE"
         ]
         not_impossible = sorted(not_impossible, key=len)
         if 2 * len(not_impossible) < len(annotations):
@@ -258,7 +265,11 @@ def process_annotation(annotation_dict, allow_single_annotations=False):
 
 
 def compute_sentence_generation_scores(
-    original_sent_dict, reference_dict, pred_dict, text_normalizer=None, word_tokenizer=None
+    original_sent_dict,
+    reference_dict,
+    pred_dict,
+    text_normalizer=None,
+    word_tokenizer=None,
 ):
     """Compute the decontextualization performances.
 
@@ -268,8 +279,9 @@ def compute_sentence_generation_scores(
         pred_sent_dict (dict): Dictionary mapping example ids to the predicted rewritten snippets.
         text_normalizer (Callable[[str], str]): What function to call to normalize text. If not provided, calls
             `normalize_text`, which does lowercasing, removes articles, punctuation and extra whitespace.
-        word_tokenizer (Callable[[str], list[str]]): Tokenization function. If not provided, use NLTK word-tokenizer.
-    
+        word_tokenizer (Callable[[str], list[str]]): Tokenization function. If not provided, use NLTK
+            word-tokenizer.
+
     Returns:
         A dict containing:
             the average precision, recall and f1 for both added and removed tokens.
@@ -293,7 +305,9 @@ def compute_sentence_generation_scores(
     per_i_raw_sari_del_fns = []
 
     for ex_id in list(reference_dict.keys()):
-        normalized_others = [normalizer(annot) for annot in reference_dict[ex_id]]
+        normalized_others = [
+            normalizer(annot) for annot in reference_dict[ex_id]
+        ]
         orig_sent = original_sent_dict[ex_id]
         model_pred_sent = pred_dict[ex_id]
 
@@ -311,7 +325,10 @@ def compute_sentence_generation_scores(
             per_i_match_only_changed_scores.append(is_matched)
 
         raw_sari = _compute_raw_sari_score(
-            normalized_orig_sent, normalized_pred_sent, normalized_others, tokenizer
+            normalized_orig_sent,
+            normalized_pred_sent,
+            normalized_others,
+            tokenizer,
         )
 
         per_i_raw_sari_add_fns.append(raw_sari.add_fn)
@@ -330,16 +347,26 @@ def compute_sentence_generation_scores(
     )
     # TODO(danielandor): Add a median increase in length.
     logging.info(
-        "Avg. Change Ratio (percent examples modified): %.1f", (get_avg(per_i_changed) * 100)
+        "Avg. Change Ratio (percent examples modified): %.1f",
+        (get_avg(per_i_changed) * 100),
     )
-    logging.info("Sentence Match Score: %.1f", (get_avg(per_i_match_scores) * 100))
+    logging.info(
+        "Sentence Match Score: %.1f", (get_avg(per_i_match_scores) * 100)
+    )
 
     logging.info(
         "Sentence Match on Changed Examples: %.1f %d",
         get_avg(per_i_match_only_changed_scores) * 100,
         len(per_i_match_only_changed_scores),
     )
-    (sari_add_tps, sari_add_fns, sari_add_fps, sari_del_tps, sari_del_fns, sari_del_fps) = (
+    (
+        sari_add_tps,
+        sari_add_fns,
+        sari_add_fps,
+        sari_del_tps,
+        sari_del_fns,
+        sari_del_fps,
+    ) = (
         get_avg(per_i_raw_sari_add_tps),
         get_avg(per_i_raw_sari_add_fns),
         get_avg(per_i_raw_sari_add_fps),
@@ -402,12 +429,20 @@ def score_classification(annotation_dict, prediction_dict):
         annotations = annotation_dict[ex_id]
         predict_label = prediction_dict[ex_id].category == "IMPOSSIBLE"
         category_prediction_list.append(predict_label)
-        annotation_labels = [(label.category == "IMPOSSIBLE") for label in annotations]
+        annotation_labels = [
+            (label.category == "IMPOSSIBLE") for label in annotations
+        ]
         match_list.extend(
-            [(predict_label == annotation_label) for annotation_label in annotation_labels]
+            [
+                (predict_label == annotation_label)
+                for annotation_label in annotation_labels
+            ]
         )
     binary_agreement_score = get_avg(match_list)
     impossible_ratio = get_avg(category_prediction_list)
     logging.info("Impossible Category Ratio: %.2f", impossible_ratio)
     logging.info("Annotation Match Score: %.2f", binary_agreement_score)
-    return dict(impossible_ratio=impossible_ratio, binary_agreement_score=binary_agreement_score)
+    return dict(
+        impossible_ratio=impossible_ratio,
+        binary_agreement_score=binary_agreement_score,
+    )

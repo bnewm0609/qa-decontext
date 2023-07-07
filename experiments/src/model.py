@@ -7,6 +7,11 @@ from typing import Any, Optional, Union
 import anthropic
 import openai
 import pytorch_lightning as pl
+import torch
+from decontext_exp.data import DatasetDict
+from decontext_exp.data_utils import OpenAIChatMessage
+from decontext_exp.metrics import Rouge, load_metrics
+from decontext_exp.utils import OPENAI_CHAT_MODEL_NAMES, Cache  # type: ignore
 from omegaconf import DictConfig
 
 # from peft import LoraConfig, TaskType, get_peft_model
@@ -22,15 +27,10 @@ from transformers import (
     get_scheduler,
 )
 
-from contrastive_tldrs.data import DatasetDict
-from contrastive_tldrs.data_utils import OpenAIChatMessage
-from contrastive_tldrs.metrics import Rouge, load_metrics
-from contrastive_tldrs.utils import OPENAI_CHAT_MODEL_NAMES, Cache  # type: ignore
-
 
 class LocalModel(pl.LightningModule):
     """Pytorch-lightning module for running Huggingface models on the cluster GPUs.
-    
+
     Attributes:
         args: Experiment configuration arguments.
         model: Huggingface model to run.
@@ -48,14 +48,14 @@ class LocalModel(pl.LightningModule):
         num_training_batches: Optional[int] = None,
     ):
         """Initialize the Module.
-        
+
         Args:
             args: Experiment configuration arguments.
             model: Huggingface model to run.
             tokenizer: Huggingface tokenizer.
             num_training_batches: The number of batches in the training data loader (used for lr sechuler).
         """
-        
+
         super().__init__()
         self.args = args
         self.model = model
@@ -72,7 +72,11 @@ class LocalModel(pl.LightningModule):
         # which takes up space that we need for finetuning the largest models]
         # (There are ways around this using multiple gpus, but I'm not going to deal
         # with it now.)
-        val_metrics = [metric for metric in args.generation.metrics if metric != "bert_score"]
+        val_metrics = [
+            metric
+            for metric in args.generation.metrics
+            if metric != "bert_score"
+        ]
         self.val_metrics = dict(zip(val_metrics, load_metrics(val_metrics)))
 
     def training_step(self, batch, batch_idx) -> Optional[STEP_OUTPUT]:
@@ -92,14 +96,22 @@ class LocalModel(pl.LightningModule):
 
         # For rouge, we actually need to generate tokens using the predict_step method:
         if "rouge" in self.args.generation.metrics:
-            predictions_batch: torch.tensor = self.predict_step(batch, batch_idx)
+            predictions_batch: torch.tensor = self.predict_step(
+                batch, batch_idx
+            )
 
             predictions = self.tokenizer.batch_decode(
-                predictions_batch, skip_special_tokens=True, clean_up_tokenization_spaces=True
+                predictions_batch,
+                skip_special_tokens=True,
+                clean_up_tokenization_spaces=True,
             )
 
             targets = self.tokenizer.batch_decode(
-                torch.where(batch["labels"] != -100, batch["labels"], self.tokenizer.pad_token_id),
+                torch.where(
+                    batch["labels"] != -100,
+                    batch["labels"],
+                    self.tokenizer.pad_token_id,
+                ),
                 skip_special_tokens=True,
                 clean_up_tokenization_spaces=True,
             )
@@ -115,7 +127,9 @@ class LocalModel(pl.LightningModule):
 
         return output.loss
 
-    def validation_epoch_end(self, outputs: Union[EPOCH_OUTPUT, list[EPOCH_OUTPUT]]) -> None:
+    def validation_epoch_end(
+        self, outputs: Union[EPOCH_OUTPUT, list[EPOCH_OUTPUT]]
+    ) -> None:
         """Combine validation metrics when the validation epoch is over and send them to wandb."""
 
         if "rouge" in self.args.generation.metrics:
@@ -164,7 +178,9 @@ class LocalModel(pl.LightningModule):
         num_training_steps = self.args.model.max_epochs * math.ceil(
             self.num_training_batches / accum_grad_batches
         )
-        num_warmup_steps = int(num_training_steps * self.args.model.warmup_ratio)
+        num_warmup_steps = int(
+            num_training_steps * self.args.model.warmup_ratio
+        )
         optimizer = AdamW(self.parameters(), lr=self.args.model.lr)
         optimizer_dict = {
             "optimizer": optimizer,
@@ -183,8 +199,9 @@ class LocalModel(pl.LightningModule):
 
 class LocalPEFTModel(LocalModel):
     """A LocalModel that uses parameter-efficient finetuning (eg LORA) with other weights frozen.
-    
+
     These are implemented using the peft library from trasnformers."""
+
     def __init__(
         self,
         args: DictConfig,
@@ -213,9 +230,11 @@ class LocalPEFTModel(LocalModel):
 class GalacticaModel(LocalModel):
     """LocalModel that is a decoder-only model."""
 
-    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
+    def predict_step(
+        self, batch: Any, batch_idx: int, dataloader_idx: int = 0
+    ) -> Any:
         """Generate predictions for one batch.
-        
+
         Filter out the inputs from the targets when predicting and implement left-padding because
         this is a decoder-only model.
         """
@@ -225,7 +244,9 @@ class GalacticaModel(LocalModel):
         targets = torch.where(batch["labels"] != -100, batch["input_ids"], 1)
 
         inpts = self.tokenizer.batch_decode(inpts, skip_special_tokens=True)
-        targets = self.tokenizer.batch_decode(targets, skip_special_tokens=True)
+        targets = self.tokenizer.batch_decode(
+            targets, skip_special_tokens=True
+        )
 
         pad_side = self.tokenizer.padding_side
         self.tokenizer.padding_side = "left"
@@ -241,11 +262,17 @@ class GalacticaModel(LocalModel):
         )
 
         # zero-out the input from the prediction
-        input_token_mask = torch.ones_like(output, device=self.args.device, dtype=bool)
+        input_token_mask = torch.ones_like(
+            output, device=self.args.device, dtype=bool
+        )
         if output.shape[1] < batch["labels"].shape[1]:
-            input_token_mask[:, : output.shape[1]] = batch["labels"][:, : output.shape[1]] != -100
+            input_token_mask[:, : output.shape[1]] = (
+                batch["labels"][:, : output.shape[1]] != -100
+            )
         else:
-            input_token_mask[:, : batch["labels"].shape[1]] = batch["labels"] != -100
+            input_token_mask[:, : batch["labels"].shape[1]] = (
+                batch["labels"] != -100
+            )
         output = torch.where(input_token_mask, output, 1)  # 1 is padding token
         return output
 
@@ -253,7 +280,9 @@ class GalacticaModel(LocalModel):
 class LocalClassificationModel(LocalModel):
     """Local model for classification."""
 
-    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> Any:
+    def predict_step(
+        self, batch: Any, batch_idx: int, dataloader_idx: int = 0
+    ) -> Any:
         output = self.model(**batch)
         pred_labels = torch.argmax(output.logits, dim=1)
         pred_probs = torch.softmax(output.logits, dim=1)
@@ -261,8 +290,7 @@ class LocalClassificationModel(LocalModel):
 
 
 class ApiModel(PreTrainedModel):
-    """Class for models that are behind APIs (e.g. GTP3)
-    """
+    """Class for models that are behind APIs (e.g. GTP3)"""
 
     def __init__(self, args: DictConfig) -> None:
         self.name = args.model.name
@@ -273,7 +301,7 @@ class ApiModel(PreTrainedModel):
 
 class GPT3Model(ApiModel):
     """Training and predicting with GPT3.
-    
+
     Attributes:
         _name: the name of the model.
         cache: A local cache to avoid sending the same request twice.
@@ -284,9 +312,9 @@ class GPT3Model(ApiModel):
 
     def __init__(self, args: DictConfig) -> None:
         """Initialize GPT3 model.
-        
+
         This involves setting up the cache, API key, and default parameters.
-        
+
         Args:
             args (DictConfig): Experiment configuration arguments.
         """
@@ -323,10 +351,10 @@ class GPT3Model(ApiModel):
 
     def prompt_with_cache(self, params):
         """Send a request to the API with the given params if they haven't been used yet.
-        
+
         This is done by creating a unique key based on the params dict and having the cache handle running
         the function to prompt the model if the key is not in the cache.
-        
+
         Args:
             params (dict): The parameters used to prompt the model with.
         """
@@ -355,7 +383,9 @@ class GPT3Model(ApiModel):
                 else:
                     response = openai.Completion.create(**params)
             except openai.error.InvalidRequestError:
-                print("Stopping to investigate why there was an invalid request to the API...")
+                print(
+                    "Stopping to investigate why there was an invalid request to the API..."
+                )
                 breakpoint()
             return response.to_dict_recursive()
 
@@ -397,7 +427,7 @@ class ClaudeModel(GPT3Model):
 
     def __init__(self, args: DictConfig) -> None:
         """Initailize the model.
-        
+
         Create an anthropic client and use a smaller set of parameters compared to OpenAI.
         """
 
@@ -416,7 +446,9 @@ class ClaudeModel(GPT3Model):
 
     def prompt_with_cache(self, params):
         """Prompt with the anthropic library instead of the OpenAI one."""
-        key = "-".join([f"{param_k}_{param_v}" for param_k, param_v in params.items()])
+        key = "-".join(
+            [f"{param_k}_{param_v}" for param_k, param_v in params.items()]
+        )
 
         key += f"-prompt_{params['prompt']}"  # [:100]  # that should be enough, right?
 
@@ -425,7 +457,9 @@ class ClaudeModel(GPT3Model):
             try:
                 response = self.client.completion(**params)
             except anthropic.ApiException:
-                print("Stopping so you can determine why there was an API exception.")
+                print(
+                    "Stopping so you can determine why there was an API exception."
+                )
                 breakpoint()
             return response
 
@@ -434,7 +468,7 @@ class ClaudeModel(GPT3Model):
 
 class FewShotModel:
     """Converts models and datasets into a few-shot format.
-    
+
     This is different from the dataset.TemplateDataset because the fewshot examples are assembled using a number
     of arguments like:
         `fewshot.x_prefix`: which comes before the input
@@ -446,7 +480,10 @@ class FewShotModel:
 
     @classmethod
     def create_prompt(
-        cls, fewshot: DictConfig, in_context_examples: list[dict[str, str]], dataset: DatasetDict
+        cls,
+        fewshot: DictConfig,
+        in_context_examples: list[dict[str, str]],
+        dataset: DatasetDict,
     ) -> list[str]:
         """Create the fewshot example prompt using the passed in context examples
 
@@ -462,7 +499,9 @@ class FewShotModel:
             stitched together later.
         """
 
-        instruction_position = fewshot.get("instructions_position", "before_examples")
+        instruction_position = fewshot.get(
+            "instructions_position", "before_examples"
+        )
         prompt = []
         if instruction_position == "before_examples":
             prompt = [fewshot.instructions]
@@ -478,7 +517,10 @@ class FewShotModel:
 
     @classmethod
     def create_messages_dataset(
-        cls, args: DictConfig, model: Union[ApiModel, pl.LightningModule], dataset: DatasetDict
+        cls,
+        args: DictConfig,
+        model: Union[ApiModel, pl.LightningModule],
+        dataset: DatasetDict,
     ):
         """
         An attempt to store message templates in few-shot examples. This should not be used and
@@ -513,10 +555,14 @@ class FewShotModel:
 
     @classmethod
     def fill_prompt_example(
-        cls, fewshot: DictConfig, prompt: list[str], example: dict[str, str], x_label: str
+        cls,
+        fewshot: DictConfig,
+        prompt: list[str],
+        example: dict[str, str],
+        x_label: str,
     ) -> dict:
         """Add a particular validation example to a prompt.
-        
+
         Args:
             fewshot (DictConfig): Parameters for the few-shot in-context learning prompts.
             prompt (list[str]): The in-context learning prompt with few shot examples. Each element is a line.
@@ -536,10 +582,13 @@ class FewShotModel:
 
     @classmethod
     def convert_to_few_shot(
-        cls, args: DictConfig, model: Union[ApiModel, pl.LightningModule], dataset: DatasetDict
+        cls,
+        args: DictConfig,
+        model: Union[ApiModel, pl.LightningModule],
+        dataset: DatasetDict,
     ):
         """Convert the validation dataset of a DatasetDict to an in-context learnin (ICL) few-shot dataset.
-         
+
         This is done by replacing each example in the dataset with a version where the in-context learning
         examples are pre-pended and the example is slotted into the ICL format. There are a few different ways
         to select in-context training examples (eg randomly, first, all, or a given set of indices).
@@ -548,11 +597,12 @@ class FewShotModel:
         prompt is filled with validation examples. Finally, the dataset is updated and returned.
 
         Args:
-            args (DictConfig): Experiment configuration arguments. Includes an `args.model.few_shot`config with the parameters
-                needed to create the ICL prompts.
-            model (Union[ApiModel, pl.LightningModule]): The model used for ICL. (TODO: remove this because it's not used)
+            args (DictConfig): Experiment configuration arguments. Includes an `args.model.few_shot`config with
+                the parameters needed to create the ICL prompts.
+            model (Union[ApiModel, pl.LightningModule]): The model used for ICL.
+                (TODO: remove this because it's not used)
             dataset (DatasetDict): The dataset that contains the val dataset to be overwritten.
-        
+
         Returns:
             A tuple containing the model, new validation dataset, and the in-context examples used.
         """
@@ -580,13 +630,18 @@ class FewShotModel:
                 )
 
                 filled_example = cls.fill_prompt_example(
-                    fewshot, prompt, dataset.train_dataset.data[i], dataset.train_dataset.x_label
+                    fewshot,
+                    prompt,
+                    dataset.train_dataset.data[i],
+                    dataset.train_dataset.x_label,
                 )
                 data.append(filled_example)
         else:
             if fewshot.ic_examples is None:
                 # select n random examples from training to use as in-context learning examples if none are given
-                selection_strategy = fewshot.get("selection_strategy")  # , "random")
+                selection_strategy = fewshot.get(
+                    "selection_strategy"
+                )  # , "random")
                 if selection_strategy == "random":
                     rng = random.Random(args.model.seed)
                     in_context_training = rng.sample(
@@ -594,14 +649,18 @@ class FewShotModel:
                     )
                 elif selection_strategy == "first":
                     # if not, just take the first num_shot examples (in order)
-                    in_context_training = list(dataset.train_dataset.data[: fewshot.num_shots])
+                    in_context_training = list(
+                        dataset.train_dataset.data[: fewshot.num_shots]
+                    )
                 else:
                     raise ValueError(
                         f"Unknown selection_strategy for choosing few shot examples: {selection_strategy}"
                     )
             elif fewshot.ic_examples == "all":
                 # Use the whole training set as in-context examples
-                in_context_training = [instance for instance in dataset.train_dataset.data]
+                in_context_training = [
+                    instance for instance in dataset.train_dataset.data
+                ]
             else:
                 # Assume that we are passed a list of idxs that should be used as in-context examples.
                 # this doesn't maintain order of the examples!!! (which we probably want...)
@@ -615,7 +674,9 @@ class FewShotModel:
 
             # now create the in-context labels
             for ex in dataset.val_dataset:
-                ex = cls.fill_prompt_example(fewshot, prompt, ex, dataset.val_dataset.x_label)
+                ex = cls.fill_prompt_example(
+                    fewshot, prompt, ex, dataset.val_dataset.x_label
+                )
                 data.append(ex)
 
         # update the data
@@ -645,6 +706,7 @@ class RetrievalModel:
     the answers to the question based on the retrieved passages. For current implementation see `pipeline.py`.
     Perhaps in the future, implementation will be moved here.
     """
+
     pass
 
 
@@ -663,7 +725,9 @@ def load_ranking_model(model_name: str) -> PreTrainedModel:
     pass
 
 
-def load_model(args: DictConfig) -> tuple[PreTrainedModel, PreTrainedTokenizer]:
+def load_model(
+    args: DictConfig,
+) -> tuple[PreTrainedModel, PreTrainedTokenizer]:
     """Return the model and tokenizer for the given model name in `args`."""
 
     model: PreTrainedModel
@@ -692,7 +756,9 @@ def load_model(args: DictConfig) -> tuple[PreTrainedModel, PreTrainedTokenizer]:
                         args.model.name, device_map="auto", load_in_8bit=True
                     )
                 else:
-                    model = AutoModelForCausalLM.from_pretrained(args.model.name)
+                    model = AutoModelForCausalLM.from_pretrained(
+                        args.model.name
+                    )
                 tokenizer = AutoTokenizer.from_pretrained(args.model.name)
                 # breakpoint()
                 if "galactica" in args.model.name:

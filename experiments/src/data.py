@@ -1,19 +1,14 @@
 import json
 from pathlib import Path
-from typing import Any, Iterator, Optional, Sequence, TypeVar, Union
+from typing import Any, Iterator, Sequence, TypeVar, Union
 
 import torch
 import yaml
+from decontext_exp.data_utils import OpenAIChatMessage, QasperFullText, QasperSection
 from jinja2 import DebugUndefined, Template
 from omegaconf import DictConfig, ListConfig
 from torch.utils.data import DataLoader
 from transformers import BatchEncoding, PreTrainedTokenizer
-
-from contrastive_tldrs.data_utils import (
-    OpenAIChatMessage,
-    QasperFullText,
-    QasperSection,
-)
 
 
 class Dataset:
@@ -28,9 +23,11 @@ class Dataset:
         y_label: The key of the dictionary of each sample that contains the gold output.
     """
 
-    def __init__(self, args: DictConfig, tokenizer: PreTrainedTokenizer, split: str) -> None:
+    def __init__(
+        self, args: DictConfig, tokenizer: PreTrainedTokenizer, split: str
+    ) -> None:
         """Initialize a dataset by reading data and creating the dataloader.
-        
+
         Args:
             args: The configuration for the experiment.
             tokenizer: Tokenizer (usually from HuggingFace) for tokenizing inputs.
@@ -46,11 +43,11 @@ class Dataset:
         self.x_label = "x"
         self.y_label = "y"
 
-        self.create_data_loader() 
+        self.create_data_loader()
 
     def create_data_loader(self):
         """Bundle `self.data` into a pytorch DataLoader.
-        
+
         Only shuffles the training set.
         """
 
@@ -82,7 +79,7 @@ class Dataset:
 
         Args:
             batch: The samples that constitue a single batch.
-        
+
         Returns:
             The collated batch for input into a Huggingface model.
         """
@@ -104,8 +101,9 @@ class Dataset:
 
 class RewriteDataset(Dataset):
     """The default dataset for HuggingFace models.
-    
+
     Data is read from a `jsonl` file, tokenized and batched using a Huggingface transformers tokenizer."""
+
     def read_data(self, data_path_or_name: str) -> Sequence[Any]:
         """Read data from `jsonl` file.
 
@@ -125,19 +123,26 @@ class RewriteDataset(Dataset):
 
     def collate(self, batch: Sequence[Any]) -> BatchEncoding:
         """Tokenize each batch using the huggingface tokenizer.
-        
+
         See overridden function in Dataset for information on args and return type.
         """
 
-        inputs, targets = zip(*[(sample[self.x_label], sample[self.y_label]) for sample in batch])
+        inputs, targets = zip(
+            *[(sample[self.x_label], sample[self.y_label]) for sample in batch]
+        )
 
         inputs = self.tokenizer(list(inputs), padding=True, truncation=True)
         with self.tokenizer.as_target_tokenizer():
-            targets = self.tokenizer(list(targets), padding=True, truncation=True)
+            targets = self.tokenizer(
+                list(targets), padding=True, truncation=True
+            )
 
         # Replace all "pad token ids" with -100 because we want to ignore them when calculating the loss
         targets["input_ids"] = [
-            [(token_id if token_id != self.tokenizer.pad_token_id else -100) for token_id in label]
+            [
+                (token_id if token_id != self.tokenizer.pad_token_id else -100)
+                for token_id in label
+            ]
             for label in targets["input_ids"]
         ]
 
@@ -147,9 +152,12 @@ class RewriteDataset(Dataset):
 
 class RewriteDatasetDecoderOnly(Dataset):
     """Default dataset for decoder-only Huggingface models (e.g. GPT2 or Galactica)."""
-    def __init__(self, args: DictConfig, tokenizer: PreTrainedTokenizer, split: str) -> None:
+
+    def __init__(
+        self, args: DictConfig, tokenizer: PreTrainedTokenizer, split: str
+    ) -> None:
         """Initialize the dataset with a different x_label and y_label.
-        
+
         See overridden function in Dataset for more information
         """
 
@@ -181,10 +189,17 @@ class RewriteDatasetDecoderOnly(Dataset):
         model takes them both at the same point.
         """
 
-        inputs, targets = zip(*[(sample[self.x_label], sample[self.y_label]) for sample in batch])
+        inputs, targets = zip(
+            *[(sample[self.x_label], sample[self.y_label]) for sample in batch]
+        )
 
         inputs = self.tokenizer(
-            inputs, targets, padding=True, truncation=True, max_length=1024, return_tensors="pt"
+            inputs,
+            targets,
+            padding=True,
+            truncation=True,
+            max_length=1024,
+            return_tensors="pt",
         )
         inputs["labels"] = torch.clone(inputs["input_ids"])
         token_type_ids = inputs.pop("token_type_ids")
@@ -200,7 +215,7 @@ class ChatTemplateDataset(RewriteDataset):
 
     This dataset was designed with the OpenAI chat and completion endpoints in mind, but also
     can work with other API providers.
-    This dataset probably should not be 
+    This dataset probably should not be
     Could also be used for completition endpoint if so desired.
     Probably shouldn't be used for fewshot learning. Look at `models.FewShotModel`
     for the code for doing few shot learning.
@@ -211,9 +226,11 @@ class ChatTemplateDataset(RewriteDataset):
         template: The template to format the data in.
     """
 
-    def __init__(self, args: DictConfig, tokenizer: PreTrainedTokenizer, split: str) -> None:
+    def __init__(
+        self, args: DictConfig, tokenizer: PreTrainedTokenizer, split: str
+    ) -> None:
         """Initialize the dataset.
-        
+
         In addition to loading the data, also load the template. Also, save the template and a sample example
         in the results directory for debugging the template. Finally, try to create the dataloader, but it
         is not necessary because we are not doing batching. The `train.jsonl` might not exist, so skip this
@@ -231,7 +248,9 @@ class ChatTemplateDataset(RewriteDataset):
         # it's good to have an example data sample for debugging and reproducibility
         # so save one in the results dir:
         if self.split == "val":
-            save_dir = Path(args.results_path) / (args.data.val._id + "-" + args.generation._id)
+            save_dir = Path(args.results_path) / (
+                args.data.val._id + "-" + args.generation._id
+            )
             save_dir.mkdir(parents=True, exist_ok=True)
 
             with open(save_dir / "sample_val_data.json", "w") as f:
@@ -255,14 +274,18 @@ class ChatTemplateDataset(RewriteDataset):
             if split != "train":
                 raise ValueError
             else:
-                print(f"No data found! File {args.data.get(split).path} is empty.")
+                print(
+                    f"No data found! File {args.data.get(split).path} is empty."
+                )
 
-    def load_template(self, template: Union[str, list]) -> Union[list[OpenAIChatMessage], str]:
+    def load_template(
+        self, template: Union[str, list]
+    ) -> Union[list[OpenAIChatMessage], str]:
         """Load the template from the config.
 
         The passed template takes one of three forms:
         1. a list[dict[str, str]] (for the OpenAI Chat Endpoint). The keys are the role ("user", "system")
-            and the values are the template for that message. The dict[str, str] is converted into an 
+            and the values are the template for that message. The dict[str, str] is converted into an
             `OpenAIChatMessage`.
         2. a string containing the template (for the OpenAI Completion or Claude endpoints)
         3. a string with a yaml filepath to either of the two above template types.
@@ -270,7 +293,7 @@ class ChatTemplateDataset(RewriteDataset):
 
         Args:
             template (Union[str, list]): The template or a path to a yaml file with template.
-        
+
         Returns:
             list[OpenAIChatMessage] for the OpenAI Chat API case and a str for the Completion or Claude
             cases with the template. The template is not filled at this point.
@@ -280,13 +303,19 @@ class ChatTemplateDataset(RewriteDataset):
         if isinstance(template, str) and template.startswith("https://"):
             # assume that the template is a public google sheet and read it into pandas as a csv
             raise NotImplementedError()
-        elif isinstance(template, str) and len(template) < 256 and Path(template).is_file():
+        elif (
+            isinstance(template, str)
+            and len(template) < 256
+            and Path(template).is_file()
+        ):
             # read the template from the file path
             with open(template) as f:
                 if template.endswith("yaml"):
                     template = yaml.safe_load(f)["template"]
                     if isinstance(template, list):
-                        template = [OpenAIChatMessage(**item) for item in template]
+                        template = [
+                            OpenAIChatMessage(**item) for item in template
+                        ]
                 else:
                     template = f.read()
         elif isinstance(template, str):
@@ -296,7 +325,9 @@ class ChatTemplateDataset(RewriteDataset):
             # assume that the passsed thing is the template dict itself
             template = [OpenAIChatMessage(**item) for item in template]
         else:
-            raise ValueError("Template must be either a list, url or path to a valid file")
+            raise ValueError(
+                "Template must be either a list, url or path to a valid file"
+            )
 
         return template
 
@@ -304,11 +335,11 @@ class ChatTemplateDataset(RewriteDataset):
         self, data_path_or_name: str, template: Union[str, list[OpenAIChatMessage]]  # type: ignore
     ) -> Sequence[Any]:  # type: ignore
         """Read the data by filling in the template.
-        
+
         Args:
             data_path_or_name (str): path to the `jsonl` file containing the data.
             template (Union[str, list[OpenAIChatMessage]]): the jinja template that will be filled in.
-        
+
         Returns:
             A list of samples, where the value at `self.data[i][self.x_label]` is the template filled in with
             the data for the `i`th sample.
@@ -324,12 +355,14 @@ class ChatTemplateDataset(RewriteDataset):
                         title=sample["title"],
                         abstract=sample["abstract"],
                         full_text=[
-                            QasperSection(**section) for section in sample["full_text"]["full_text"]
+                            QasperSection(**section)
+                            for section in sample["full_text"]["full_text"]
                         ],
                     )
 
                     while (
-                        len(self.tokenizer.tokenize(str(sample["full_text"]))) > 8080 - 100
+                        len(self.tokenizer.tokenize(str(sample["full_text"])))
+                        > 8080 - 100
                     ):  # 755:  # len(prompt)
                         if not sample["full_text"].full_text[-1].paragraphs:
                             sample["full_text"].full_text.pop(-1)
@@ -338,7 +371,9 @@ class ChatTemplateDataset(RewriteDataset):
 
                 # substitute any variables into the template
                 if isinstance(template, str):
-                    new_messages = Template(template, undefined=DebugUndefined).render(sample)
+                    new_messages = Template(
+                        template, undefined=DebugUndefined
+                    ).render(sample)
                 else:
                     new_messages = []
                     for chat_message in template:
@@ -362,7 +397,10 @@ class ChatTemplateDataset(RewriteDataset):
                 )
         if self.split == "train":
             # save a few training examples with the prompts for debugging
-            with open(Path(self.args.results_path) / "filled_train_templates.jsonl", "w") as f:
+            with open(
+                Path(self.args.results_path) / "filled_train_templates.jsonl",
+                "w",
+            ) as f:
                 for sample in data:
                     try:
                         f.write(json.dumps(sample) + "\n")
@@ -371,7 +409,10 @@ class ChatTemplateDataset(RewriteDataset):
                             json.dumps(
                                 {
                                     "idx": sample["idx"],
-                                    "x": [json.loads(message.json()) for message in sample["x"]],
+                                    "x": [
+                                        json.loads(message.json())
+                                        for message in sample["x"]
+                                    ],
                                     "y": sample["y"],
                                 }
                             )
@@ -385,10 +426,16 @@ class ChatTemplateDataset(RewriteDataset):
 
     def collate(self, batch: Sequence[Any]) -> BatchEncoding:
         """Use the huggingface tokenizer to tokenize each batch"""
-        inputs, targets = zip(*[(sample[self.x_label], sample[self.y_label]) for sample in batch])
+        inputs, targets = zip(
+            *[(sample[self.x_label], sample[self.y_label]) for sample in batch]
+        )
 
         inputs = self.tokenizer(
-            inputs, padding=True, truncation=True, max_length=1023, return_tensors="pt"
+            inputs,
+            padding=True,
+            truncation=True,
+            max_length=1023,
+            return_tensors="pt",
         )
         inputs["labels"] = torch.clone(inputs["input_ids"])
         token_type_ids = inputs.pop("token_type_ids")
@@ -408,9 +455,11 @@ class PipelineDataset(Dataset):
     questions, those have to be loaded in at this stage.
     """
 
-    def __init__(self, args: DictConfig, tokenizer: PreTrainedTokenizer, split: str) -> None:
+    def __init__(
+        self, args: DictConfig, tokenizer: PreTrainedTokenizer, split: str
+    ) -> None:
         """Initialize the dataset.
-        
+
         No dataloader is created because it is not needed.
         """
 
@@ -431,10 +480,43 @@ class PipelineDataset(Dataset):
         Offload reading data to the `pipeline` module because different runs have different data
         that has to be loaded in.
         """
-        import contrastive_tldrs.pipeline as pipeline
+        import decontext_exp.pipeline as pipeline
 
         run_steps = pipeline.load_steps_to_run(self.args)
         return pipeline.load_data(data_path_or_name, run_steps)
+
+
+class FilterDataset(Dataset):
+    """For filtering samples out using a classifier."""
+
+    def __init__(
+        self, args: DictConfig, tokenizer: PreTrainedTokenizer, split: str
+    ) -> None:
+        super().__init__(args, tokenizer, split)
+        self.id2label = {0: "neg", 1: "pos"}
+        self.label2id = {v: k for k, v in self.id2label.items()}
+
+    def read_data(self, data_path_or_name: str) -> Sequence[Any]:
+        data = []
+        with open(data_path_or_name) as f:
+            for line in f:
+                sample = json.loads(line.strip())
+                data.append(sample)
+        return data
+
+    def collate(self, batch: Sequence[Any]) -> BatchEncoding:
+        """
+        Uses the huggingface tokenizer to tokenize each batch
+        """
+        inputs, targets = zip(
+            *[(sample[self.x_label], sample[self.y_label]) for sample in batch]
+        )
+
+        inputs = self.tokenizer(list(inputs), padding=True, truncation=True)
+        targets = [self.label2id[label] for label in targets]
+
+        inputs["labels"] = targets
+        return inputs.convert_to_tensors(tensor_type="pt")
 
 
 # NOTE: I don't know if the below actually works....
@@ -448,7 +530,7 @@ DatasetCls = TypeVar("DatasetCls", bound=Dataset, covariant=True)
 
 class DatasetDict:
     """Store train, val, and test datasets in one object that can be passed around.
-    
+
     Attributes:
         train_dataset: The training dataset.
         val_dataset: The validation dataset.
@@ -456,12 +538,15 @@ class DatasetDict:
     """
 
     def __init__(
-        self, args: DictConfig, tokenizer: PreTrainedTokenizer, DatasetCls: type[DatasetCls]
+        self,
+        args: DictConfig,
+        tokenizer: PreTrainedTokenizer,
+        DatasetCls: type[DatasetCls],
     ) -> None:
         """Initialize the DatasetDict.
-        
+
         Loads in the train, val, and test (if uncommented).
-        
+
         Args:
             args (DictConfig): The experiment configuration arguments.
             tokenizer (PreTrainedTokenizer): The Huggingface tokenizer to be used to tokenize the data.
@@ -469,7 +554,9 @@ class DatasetDict:
         """
 
         try:
-            self.train_dataset: Dataset = DatasetCls(args, tokenizer, split="train")
+            self.train_dataset: Dataset = DatasetCls(
+                args, tokenizer, split="train"
+            )
         except FileNotFoundError:
             print(
                 "Unable to load training data. "
@@ -480,7 +567,9 @@ class DatasetDict:
         # self.test_dataset = DatasetCls(args, tokenizer, split="test")
 
 
-def load_dataset(args: DictConfig, tokenizer: PreTrainedTokenizer) -> DatasetDict:
+def load_dataset(
+    args: DictConfig, tokenizer: PreTrainedTokenizer
+) -> DatasetDict:
     """Instantiates a DatasetDict with the correct Dataset class based on the args.
 
     Args:

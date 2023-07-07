@@ -7,26 +7,21 @@ from typing import Optional
 
 import anthropic
 import openai
+from decontext_exp.data import Dataset, DatasetDict
+from decontext_exp.experiment.experiment_runner import ExperimentRunner
+from decontext_exp.model import ApiModel
+from decontext_exp.utils import Predictions, get_openai_price_estimate, run_subprocess
 from omegaconf import DictConfig
 from pytorch_lightning import LightningModule
-
-from contrastive_tldrs.data import Dataset, DatasetDict
-from contrastive_tldrs.experiment.experiment_runner import ExperimentRunner
-from contrastive_tldrs.model import ApiModel
-from contrastive_tldrs.utils import (
-    Predictions,
-    get_openai_price_estimate,
-    run_subprocess,
-)
 
 
 class ApiExperimentRunner(ExperimentRunner):
     """Wrapper for running experiments with API models
-    
+
     API models are ones from companies like Anthropic and OpenAI. Right now inference for
     Anthropic and OpenAI are supported, but only training for OpenAI is supported.
     """
-    
+
     def initialize_experiment(self) -> None:
         """Initialize the experiment"""
 
@@ -72,11 +67,11 @@ class ApiExperimentRunner(ExperimentRunner):
 
         The identifier is appended to the model name when saved on OpenAI. There is a maximum suffix length of
         40 characters.
-        
+
         Args:
             model_id (str): An identifier for the base model.
             train_id (str): An identifier for the training args.
-        
+
         Returns:
             str: if the suffix is 40 or fewer characters.
             None: if the suffix is too long.
@@ -91,16 +86,22 @@ class ApiExperimentRunner(ExperimentRunner):
         # if the suffix is *still* too long, then just return None - we are probably not trying
         # to use a fine-tuned model here and the suffixes only matter for the fine-tuned models.
         if len(suffix) > 40:
-            print(f"WARNING!!! Suffix is too long at {len(suffix)} chars. Suffix is: {suffix}")
+            print(
+                f"WARNING!!! Suffix is too long at {len(suffix)} chars. Suffix is: {suffix}"
+            )
             return None
 
-        assert len(suffix) <= 40, f"Suffix is too long at {len(suffix)} chars. Suffix is: {suffix}"
+        assert (
+            len(suffix) <= 40
+        ), f"Suffix is too long at {len(suffix)} chars. Suffix is: {suffix}"
 
         # openai doesn't allow "_" in their suffixes for some reason...
         suffix = suffix.replace("_", "-")
         return suffix
 
-    def train(self, args: DictConfig, data: DatasetDict, model: ApiModel) -> None:
+    def train(
+        self, args: DictConfig, data: DatasetDict, model: ApiModel
+    ) -> None:
         """Call the Openai Fine-tuning endpoint to train a model on our dataset.
 
         Args:
@@ -140,11 +141,15 @@ class ApiExperimentRunner(ExperimentRunner):
 
         log_lines = []
         results_file_id: str
-        if args.model.get("for_sure_run_train_command_and_spend_dollars", False):
+        if args.model.get(
+            "for_sure_run_train_command_and_spend_dollars", False
+        ):
             for line in run_subprocess(train_cmd):
                 print(line)
                 log_lines.append(line)
-                results_file_match = re.search(r"Created fine-tune: (ft-\w+)", line)
+                results_file_match = re.search(
+                    r"Created fine-tune: (ft-\w+)", line
+                )
                 if results_file_match is not None:
                     results_file_id = results_file_match.group(1)
         else:
@@ -154,16 +159,21 @@ class ApiExperimentRunner(ExperimentRunner):
             sys.exit(0)
 
         # now save the logs
-        with open(Path(self.args.results_path) / "logs" / "stdout.txt", "w") as f:
+        with open(
+            Path(self.args.results_path) / "logs" / "stdout.txt", "w"
+        ) as f:
             f.write("\n".join(log_lines) + "\n")
 
         # and save the training metrics
-        get_results_file_cmd = shlex.split(f'openai api fine_tunes.results -i "{results_file_id}"')
+        get_results_file_cmd = shlex.split(
+            f'openai api fine_tunes.results -i "{results_file_id}"'
+        )
         with open(self.args.results_path / "logs" / "metrics.csv", "w") as f:
             subprocess.run(get_results_file_cmd, stdout=f)
 
-
-    def _predict(self, args: DictConfig, dataset: Dataset, model: LightningModule) -> Predictions:
+    def _predict(
+        self, args: DictConfig, dataset: Dataset, model: LightningModule
+    ) -> Predictions:
         """Run inference using the specified model
 
         The model might be a fine-tuned GPT3 model, a base GPT3 model or a Claude model. Use the model to generate
@@ -173,7 +183,7 @@ class ApiExperimentRunner(ExperimentRunner):
             args (DictConfig): Config for the run.
             dataloader (Dataset): Either the dev or test dataloader from a DataSet object.
             model (LightningModule): The model to use to generate the predictions (unused in this case)
-        
+
         Returns:
             Predictions: A wrapper for the model predictions and metadata.
         """
@@ -200,10 +210,15 @@ class ApiExperimentRunner(ExperimentRunner):
 
         if ft_model_name is None:
             print("Unable to find model with name:", model_prefix)
-            print("Found models:", [ft_model["fine_tuned_model"] for ft_model in models])
+            print(
+                "Found models:",
+                [ft_model["fine_tuned_model"] for ft_model in models],
+            )
 
             price_estimate = get_openai_price_estimate(
-                args.model.name, dataset=dataset, max_gen_len=args.generation.max_tokens
+                args.model.name,
+                dataset=dataset,
+                max_gen_len=args.generation.max_tokens,
             )
             price_estimate_per_example = price_estimate / len(dataset)
             print(
@@ -266,7 +281,9 @@ class ApiExperimentRunner(ExperimentRunner):
             # total_token_usage += response["usage"]["total_tokens"]  # type: ignore
 
             if self.model.is_anthropic_model:
-                total_prompt_tokens += anthropic.count_tokens(example[dataset.x_label])
+                total_prompt_tokens += anthropic.count_tokens(
+                    example[dataset.x_label]
+                )
                 total_prompt_tokens += anthropic.count_tokens(response["completion"])  # type: ignore
             else:
                 total_prompt_tokens += response["usage"]["prompt_tokens"]  # type: ignore
@@ -281,12 +298,19 @@ class ApiExperimentRunner(ExperimentRunner):
             f"Estimated price of prompts (total): ${math.ceil(price_estimate * 100) / 100.0 :.2f}"
         )
         print(f"Estimated price per prompt: ${price_estimate_per_example}")
-        print(f"Actual price of prompts (total): ${math.ceil(price_actual * 100) / 100.0 :.2f}")
+        print(
+            f"Actual price of prompts (total): ${math.ceil(price_actual * 100) / 100.0 :.2f}"
+        )
         print(f"Actual price per prompt: ${price_actual_per_example}")
 
         # this is kinda janky... but to include the price info I'm appending it to the metadata. Any time
         # we need to use the metadata, there should be one item for prediction, so there will be one metadata
         # item which does not have an associated prediction, and it will be the price.
-        metadata.append({"price_per_prompt": price_actual_per_example, "price_total": price_actual})
+        metadata.append(
+            {
+                "price_per_prompt": price_actual_per_example,
+                "price_total": price_actual,
+            }
+        )
 
         return Predictions(predictions, metadata)

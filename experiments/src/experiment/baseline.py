@@ -1,22 +1,24 @@
 from typing import Union
 
 import pytorch_lightning as pl
+from decontext_exp.data import Dataset, DatasetDict
+from decontext_exp.experiment.experiment_runner import ExperimentRunner
+from decontext_exp.model import ApiModel
+from decontext_exp.utils import Predictions
 from omegaconf import DictConfig
-
-from contrastive_tldrs.data import Dataset, DatasetDict
-from contrastive_tldrs.experiment.experiment_runner import ExperimentRunner
-from contrastive_tldrs.model import ApiModel
-from contrastive_tldrs.utils import Predictions
 
 
 class BaselineExperimentRunner(ExperimentRunner):
     """Wrapper for running baseline experiments
-    
+
     Baseline experiments are ones whose outputs are specified in the data file.
     """
 
     def train(
-        self, args: DictConfig, data: DatasetDict, model: Union[ApiModel, pl.LightningModule]
+        self,
+        args: DictConfig,
+        data: DatasetDict,
+        model: Union[ApiModel, pl.LightningModule],
     ) -> None:
         """Train the model.
 
@@ -31,10 +33,15 @@ class BaselineExperimentRunner(ExperimentRunner):
             NotImplementedError.
         """
 
-        raise NotImplementedError("Cannot train the Baseline Experiment Runner")
+        raise NotImplementedError(
+            "Cannot train the Baseline Experiment Runner"
+        )
 
     def _predict(
-        self, args: DictConfig, dataset: Dataset, model: Union[ApiModel, pl.LightningModule]
+        self,
+        args: DictConfig,
+        dataset: Dataset,
+        model: Union[ApiModel, pl.LightningModule],
     ) -> Predictions:
         """Run inference
 

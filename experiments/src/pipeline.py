@@ -10,8 +10,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Union
 
-from contrastive_tldrs.experiment.api import ApiExperimentRunner
-from contrastive_tldrs.utils import hash_strs
+from decontext_exp.experiment.api import ApiExperimentRunner
+from decontext_exp.utils import hash_strs
 from hydra import compose  # , initialize
 from hydra.core.config_store import ConfigStore
 from omegaconf import DictConfig, ListConfig, OmegaConf
@@ -20,7 +20,7 @@ from shadow_scholar.app import pdod
 NO_QUESTIONS = {"No questions.", "Impossible."}
 
 FULL_TEXTS = {}
-with open("data/full_text_db_with_missing_cite_ids_extended.json") as f:
+with open("data/full_texts.json") as f:
     FULL_TEXTS = json.load(f)
 
 

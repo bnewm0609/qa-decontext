@@ -3,16 +3,14 @@
 import sys
 
 import hydra
+from decontext_exp.experiment.api import ApiExperimentRunner
+from decontext_exp.experiment.baseline import BaselineExperimentRunner
+from decontext_exp.experiment.experiment_runner import ExperimentRunner
+from decontext_exp.experiment.local import LocalExperimentRunner
+from decontext_exp.experiment.pipeline import PipelineExperimentRunner
+from decontext_exp.model import BASELINE_MODELS
+from decontext_exp.utils import RunMode, hash_strs
 from omegaconf import DictConfig, OmegaConf
-
-from contrastive_tldrs.experiment.api import ApiExperimentRunner
-from contrastive_tldrs.experiment.baseline import BaselineExperimentRunner
-from contrastive_tldrs.experiment.experiment_runner import ExperimentRunner
-from contrastive_tldrs.experiment.local import LocalExperimentRunner
-from contrastive_tldrs.experiment.pipeline import PipelineExperimentRunner
-from contrastive_tldrs.experiment.retrieval import RetrievalExperimentRunner
-from contrastive_tldrs.model import BASELINE_MODELS
-from contrastive_tldrs.utils import RunMode, hash_strs
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="config")
@@ -25,11 +23,15 @@ def main(args: DictConfig) -> None:
         args (DictConfig): The experiment configuration arguments.
     """
     OmegaConf.register_new_resolver("esc_slash", lambda x: x.replace("/", "-"))
-    OmegaConf.register_new_resolver("esc_period", lambda x: str(x).replace(".", "-"))
+    OmegaConf.register_new_resolver(
+        "esc_period", lambda x: str(x).replace(".", "-")
+    )
     # ignores trailing "/"
     OmegaConf.register_new_resolver(
         "extract_path",
-        lambda path, num_segments: "-".join(path.strip("/").split("/")[-num_segments:]),
+        lambda path, num_segments: "-".join(
+            path.strip("/").split("/")[-num_segments:]
+        ),
     )
     OmegaConf.register_new_resolver("hash", hash_strs)
 
@@ -49,22 +51,24 @@ def main(args: DictConfig) -> None:
             experiment_runner = BaselineExperimentRunner(args)
         else:
             experiment_runner = LocalExperimentRunner(args)
-    elif args.model.interface == "retrieval":
-        experiment_runner = RetrievalExperimentRunner(args)
     elif args.model.interface == "pipeline":
         experiment_runner = PipelineExperimentRunner(args)
     else:
         raise ValueError(
-            f"Unknown model interface type: {args.model.interface}. Must be one of ['api', 'local', 'retrieval']."
+            f"Unknown model interface type: {args.model.interface}. Must be one of ['api', 'local', 'pipeline']."
         )
 
     # Run training, prediction, or evaluation based on user specification
     if args.mode == RunMode.TRAIN:
         print("Results will save to:", args.results_path)
-        experiment_runner.train(args, experiment_runner.data, experiment_runner.model)
+        experiment_runner.train(
+            args, experiment_runner.data, experiment_runner.model
+        )
         print("Results saved to:", args.results_path)
     elif args.mode == RunMode.PREDICT:
-        experiment_runner.predict(args, experiment_runner.data, experiment_runner.model, "val")
+        experiment_runner.predict(
+            args, experiment_runner.data, experiment_runner.model, "val"
+        )
     elif args.mode == RunMode.EVALUATE:
         experiment_runner.evaluate(args, "val")
 

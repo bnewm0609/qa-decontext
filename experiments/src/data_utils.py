@@ -4,15 +4,12 @@ These are in a separate file from `utils.py` to avoid circular imports as becaus
 in `utils.py` require classes from `data.py`, and `data.py` requires these utilities.
 """
 
-from typing import Optional
-
 from pydantic import BaseModel
-from transformers import PreTrainedTokenizer
 
 
 class OpenAIChatMessage(BaseModel):
     """Input the the OpenAI chat Endpoint
-    
+
     Attributes:
         role (str): "system" or "user".
         content (str): the prompt to the model.
@@ -24,7 +21,7 @@ class OpenAIChatMessage(BaseModel):
 
 class QasperSection(BaseModel):
     """Section of a paper in Qasper
-    
+
     Attributes:
         section_name (str): The section heading.
         paragraphs (list[str]): the paragrphs in the section.
@@ -36,7 +33,7 @@ class QasperSection(BaseModel):
 
 class QasperFullText(BaseModel):
     """The full text of a paper in Qasper
-    
+
     Attributes:
         title (str): The paper title.
         abstract (str): The paper abstract.
@@ -54,7 +51,7 @@ class QasperFullText(BaseModel):
 
     def __str__(self):
         """Format the QasperFullText
-        
+
         The Full Texts are formatted as secion headings paragraphs separated by two new line characters.
         Full texts are truncated at the word limit.
         """

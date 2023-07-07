@@ -7,6 +7,8 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 from bert_score import BERTScorer
+from decontext_exp.clarification_metric import compute_clf_metric
+from decontext_exp.sari_metric import compute_sentence_generation_scores
 from hydra import compose
 from nltk import word_tokenize
 from omegaconf import DictConfig
@@ -15,13 +17,10 @@ from sklearn.metrics import average_precision_score
 from torch.utils.data import DataLoader
 from transformers import DataCollatorWithPadding
 
-from contrastive_tldrs.clarification_metric import compute_clf_metric
-from contrastive_tldrs.sari_metric import compute_sentence_generation_scores
-
 
 class Metric(object):
     """Calculates and stores information for evaluation metrics.
-    
+
     Attributes:
         name: The name of the metric.
         requires_metadata: True if calculating the metric requires information outside of just the
@@ -33,16 +32,18 @@ class Metric(object):
 
     def __init__(self):
         """Initialize the metric.
-        
+
         By default, per-example scores are stored in `self.scores` and `self.requires_metadata` is False
         """
 
         self.scores = []
         self.requires_metadata = False
 
-    def add(self, prediction: str, target: str, metadata: Optional[Any] = None):
+    def add(
+        self, prediction: str, target: str, metadata: Optional[Any] = None
+    ):
         """Calculate the score for the the given (prediction, target) pair
-        
+
         and add it to the list of all scores.
 
         Args:
@@ -88,14 +89,15 @@ class Metric(object):
                 for prediction, target in zip(predictions, targets):
                     self.add(prediction, target)
             else:
-                for prediction, target, metadatum in zip(predictions, targets, metadata):
+                for prediction, target, metadatum in zip(
+                    predictions, targets, metadata
+                ):
                     self.add(prediction, target, metadatum)
 
         return self.process_scores()
 
     def reset(self) -> None:
-        """Reset the accumulated scores.
-        """
+        """Reset the accumulated scores."""
         self.scores = []
 
 
@@ -111,7 +113,9 @@ class ExactMatch(Metric):
 
         return {"em": np.mean(self.scores)}
 
-    def add(self, prediction: str, target: str, metadata: Optional[Any] = None):
+    def add(
+        self, prediction: str, target: str, metadata: Optional[Any] = None
+    ):
         """Calculate the score as whether the prediction matches the target."""
 
         self.scores.append(int(prediction == target))
@@ -119,7 +123,7 @@ class ExactMatch(Metric):
 
 class FirstPersonPerctage(Metric):
     """Calculates what proportion of the samples contain first-person pronouns.
-    
+
     Also calculates the frequency of different first-person pronouns
     """
 
@@ -128,7 +132,9 @@ class FirstPersonPerctage(Metric):
         self.name = "FirstPersonPercentage"
         self.reset()
 
-    def add(self, prediction: str, target: str, metadata: Optional[Any] = None):
+    def add(
+        self, prediction: str, target: str, metadata: Optional[Any] = None
+    ):
         pattern = r"\bour\b|\bours\b|\bthis paper\b|\bthis work\b"
         matches = re.findall(pattern, prediction)
         self.scores["matches"].append(int(bool(matches)))
@@ -137,7 +143,10 @@ class FirstPersonPerctage(Metric):
 
     def process_scores(self) -> dict[str, Any]:
         """Return the mean percentage and the frequency of first-person prounouns."""
-        return {"mean": np.mean(self.scores["matches"]) * 100, "counter": self.scores["counter"]}
+        return {
+            "mean": np.mean(self.scores["matches"]) * 100,
+            "counter": self.scores["counter"],
+        }
 
     def reset(self):
         self.scores = {"counter": Counter(), "matches": []}
@@ -150,7 +159,9 @@ class QuestionPerctage(Metric):
         super().__init__()
         self.name = "QuestionPercentage"
 
-    def add(self, prediction: str, target: str, metadata: Optional[Any] = None):
+    def add(
+        self, prediction: str, target: str, metadata: Optional[Any] = None
+    ):
         score = int("?" in prediction)
         self.scores.append(score)
 
@@ -165,7 +176,9 @@ class QuestionNumber(Metric):
         super().__init__()
         self.name = "QuestionNumberComparison"
 
-    def add(self, prediction: str, target: str, metadata: Optional[Any] = None):
+    def add(
+        self, prediction: str, target: str, metadata: Optional[Any] = None
+    ):
         score = prediction.count("?") - target.count("?")
         self.scores.append(score)
 
@@ -179,13 +192,14 @@ class QuestionNumber(Metric):
 
 class Rouge(Metric):
     """Calculates ROUGE scores.
-    
+
     Specifically, calculates the rouge1, rouige2, rougeL, and rougeLsum scores. The precision, recall,
     and f1 scores are tracked. Also caluclates the average F1 score across these types.
 
     Attributes:
         rouges: the rouge scores to use.
-      """
+    """
+
     def __init__(self):
         """Initializes the rouge scorer using a stemmer."""
         super().__init__()
@@ -197,7 +211,9 @@ class Rouge(Metric):
     def reset(self) -> None:
         self.scores = {r_name: [] for r_name in self.rouges}
 
-    def add(self, prediction: str, target: str, metadata: Optional[Any] = None):
+    def add(
+        self, prediction: str, target: str, metadata: Optional[Any] = None
+    ):
         try:
             score = self.scorer.score(target, prediction)
         except AttributeError:
@@ -212,11 +228,16 @@ class Rouge(Metric):
                 "precision": [score.precision * 100 for score in value],
                 "recall": [score.recall * 100 for score in value],
                 "fmeasure": [score.fmeasure * 100 for score in value],
-                "fmeasure_mean": np.mean([score.fmeasure for score in value]) * 100,
+                "fmeasure_mean": np.mean([score.fmeasure for score in value])
+                * 100,
             }
         # Compute the arithmetic mean of ROUGE-1, ROUGE-2 and ROUGE-L following: https://arxiv.org/abs/2110.08499
         rouge_results["rouge_avg_fmeasure"] = np.mean(
-            [rouge_results[key]["fmeasure"] for key in ["rouge1", "rouge2", "rougeL"]], axis=0
+            [
+                rouge_results[key]["fmeasure"]
+                for key in ["rouge1", "rouge2", "rougeL"]
+            ],
+            axis=0,
         ).tolist()
         rouge_results["rouge_avg_fmeasure_mean"] = np.mean(
             rouge_results["rouge_avg_fmeasure"]
@@ -236,14 +257,18 @@ class BertScore(Metric):
         device: "cuda" if GPU is available, otherwise "cpu".
         bertscore: the object that computes the BERT Score.
     """
+
     def __init__(
-        self, model_type: str = "microsoft/deberta-xlarge-mnli", post_process: bool = False
+        self,
+        model_type: str = "microsoft/deberta-xlarge-mnli",
+        post_process: bool = False,
     ):
         """Initialize the BERTScorer.
 
         Args:
             model_type (str): the model used (deberta-xlarge-mnli is best, but it's too large for testing)
-            post_process (bool): whether to perform post-processing of the predictions to better match the target data format.
+            post_process (bool): whether to perform post-processing of the predictions to better match the
+                target data format.
         """
         super().__init__()
         self.name = "BERTScore"
@@ -263,7 +288,9 @@ class BertScore(Metric):
         )
         self.reset()
 
-    def add(self, prediction: str, target: str, metadata: Optional[Any] = None) -> None:
+    def add(
+        self, prediction: str, target: str, metadata: Optional[Any] = None
+    ) -> None:
         del metadata
         if self.post_process:
             prediction.replace("[REF0]", "the authors")
@@ -297,13 +324,17 @@ class AveragePrecision(Metric):
         self.requires_metadata = True  # needs the classification scores
         self.reset()
 
-    def add(self, prediction: str, target: str, metadata: Optional[Any] = None):
+    def add(
+        self, prediction: str, target: str, metadata: Optional[Any] = None
+    ):
         """
         Assumes that the labels are 'pos' and 'neg'
         """
         del prediction
         if metadata is not None:
-            label2id = {label: int(idx) for idx, label in metadata["label_map"].items()}
+            label2id = {
+                label: int(idx) for idx, label in metadata["label_map"].items()
+            }
             p1 = metadata["probs"][label2id["pos"]]
             self.scores.append(p1)
             self.targets.append(label2id[target])
@@ -320,7 +351,12 @@ class AveragePrecision(Metric):
 
 
 class FilterModel(Metric):
-    def __init__(self, model_config: str, input_data_file: str, model_checkpoint_path: str):
+    def __init__(
+        self,
+        model_config: str,
+        input_data_file: str,
+        model_checkpoint_path: str,
+    ):
         """
         input_data_file: this is the file with the predictions, specifically the x's and the idxs. Ideally we
             shouldn't care about these because the prediction should just require the y's and targets, but
@@ -336,13 +372,17 @@ class FilterModel(Metric):
         # open up the model config. Assumes that hydra has already been initialized
         filter_cfg = compose(
             config_name="config",
-            overrides=["data=rewrite_filter_clf", f"model={model_config}", "wandb=False"],
+            overrides=[
+                "data=rewrite_filter_clf",
+                f"model={model_config}",
+                "wandb=False",
+            ],
         )
 
-        import contrastive_tldrs.model  # import module here to avoid circular imports
+        import decontext_exp.model  # import module here to avoid circular imports
 
-        model, self.tokenizer = contrastive_tldrs.model.load_model(filter_cfg)
-        self.model = contrastive_tldrs.model.LocalClassificationModel(
+        model, self.tokenizer = decontext_exp.model.load_model(filter_cfg)
+        self.model = decontext_exp.model.LocalClassificationModel(
             filter_cfg, model, self.tokenizer, num_training_batches=0
         )
         self.trainer = pl.Trainer(accelerator="auto")
@@ -351,7 +391,9 @@ class FilterModel(Metric):
         with open(input_data_file) as f:
             self.input_data = [json.loads(line.strip()) for line in f]
 
-    def add(self, prediction: str, target: str, metadata: Optional[Any] = None):
+    def add(
+        self, prediction: str, target: str, metadata: Optional[Any] = None
+    ):
         """
         Assumes that the predictions are in the same order as the data, which they should be because
         the `evaluate` method loads the predictions in the same way as done in `__init__`.
@@ -389,7 +431,9 @@ class FilterModel(Metric):
             for score in prediction_batch["probs"]
         ]
         results = {}
-        for input_data, text_input, score in zip(self.input_data, self.text_inputs, scores):
+        for input_data, text_input, score in zip(
+            self.input_data, self.text_inputs, scores
+        ):
             results[str(input_data["idx"])] = {"score": score, "x": text_input}
 
         return results
@@ -428,7 +472,7 @@ def parse_original_sentence(metadata):
     snippet without any parsing necessary. In prior formative experiments, the metadata doesn't have this
     key, so the original snippet was parsed out of the prompt. (This *usually* worked, but was not reliable,
     hence in later experiments, the key "x_no_parse" was used.)
-    
+
     Args:
         metadata: the metadata dictionary for the sample.
     """
@@ -486,22 +530,27 @@ def parse_original_sentence(metadata):
         except ValueError:
             continue
     else:
-        raise ValueError("None of start_texts or end_texts were found in snippet.")
+        raise ValueError(
+            "None of start_texts or end_texts were found in snippet."
+        )
 
     return original_sent
 
 
 class Sari(Metric):
     """Implement the SARI metric.
-    
+
     Implements the SARI metric from Xu et al., 2016 (https://aclanthology.org/Q16-1029/).
     """
+
     def __init__(self):
         self.name = "Sari"
         self.requires_metadata = True
         self.reset()
 
-    def add(self, prediction: str, target: str, metadata: Optional[Any] = None):
+    def add(
+        self, prediction: str, target: str, metadata: Optional[Any] = None
+    ):
         """Parse out the original sentence and add the (prediction, targets) to a list."""
         if metadata is None:
             idx = self.counter
@@ -548,12 +597,15 @@ class LengthChange(Metric):
 
     Also calculates the difference in token count between prediction and targets.
     """
+
     def __init__(self):
         super().__init__()
         self.name = "LengthChange"
         self.reset()
 
-    def add(self, prediction: str, target: str, metadata: Optional[Any] = None):
+    def add(
+        self, prediction: str, target: str, metadata: Optional[Any] = None
+    ):
         pred_words = word_tokenize(prediction)
         target_words = word_tokenize(target)
         self.scores["token"].append(len(pred_words) / len(target_words))
@@ -573,22 +625,27 @@ class LengthChange(Metric):
 
 class Clarification(Metric):
     """Implements the Clarification (CLF) metric.
-    
+
     Extracts the the spans in square brackets in both the target and prediction and compares them.
     """
+
     def __init__(self):
         super().__init__()
         self.name = "Clarification"
         self.requires_metadata = True
         self.reset()
 
-    def add(self, prediction: str, target: str, metadata: Optional[Any] = None):
+    def add(
+        self, prediction: str, target: str, metadata: Optional[Any] = None
+    ):
         # extract the stuff in square brackets from prediction and target
         pattern = r"\[(.*?)\]"
         prediction_additions = re.findall(pattern, prediction)
         target_additions = re.findall(pattern, target)
 
-        p, r, f1, iou, alignments = compute_clf_metric(prediction_additions, target_additions)
+        p, r, f1, iou, alignments = compute_clf_metric(
+            prediction_additions, target_additions
+        )
 
         self.scores["iou"].append(iou)
         self.scores["precision"].append(p)
@@ -598,7 +655,7 @@ class Clarification(Metric):
 
     def process_scores(self) -> dict[str, Any]:
         """Return a number of the following CLF scores.
-        
+
         * iou_mean: Average token-level intersection-over-union between the closest span in
             the prediction and target.
         * p_mean: Average per-snippet precision between tokens in the closest spans in the
@@ -626,22 +683,25 @@ class Clarification(Metric):
         }
 
     def reset(self) -> None:
-        self.scores = {"iou": [], "alignments": [], "recall": [], "precision": [], "f1": []}
+        self.scores = {
+            "iou": [],
+            "alignments": [],
+            "recall": [],
+            "precision": [],
+            "f1": [],
+        }
 
 
 # Map each metric name in the config to the correct class.
 METRIC_MAP = {
     "em": ExactMatch,
     "rouge": Rouge,
-    "prf1": PRF1,
     "average_precision": AveragePrecision,
     "filter": FilterModel,
     "bert_score": BertScore,
-    "p1p2pct": Paper1Paper2Perctage,
     "1st_pers_pct": FirstPersonPerctage,
     "question_pct": QuestionPerctage,
     "question_num": QuestionNumber,
-    "question_snippet_overlap": QuestionSnippetOverlap,
     "sari": Sari,
     "length_change": LengthChange,
     "clf": Clarification,
@@ -649,14 +709,15 @@ METRIC_MAP = {
 
 
 def load_metrics(metric_params: DictConfig) -> Sequence[Metric]:
-    """Return the list of metrics we are going to evaluate
-    """
+    """Return the list of metrics we are going to evaluate"""
     metrics: list[Metric] = []
 
     for metric_param in metric_params:
         if isinstance(metric_param, DictConfig):
             metric_name = metric_param["name"]
-            metric_param_dict = {k: v for k, v in metric_param.items() if k != "name"}
+            metric_param_dict = {
+                k: v for k, v in metric_param.items() if k != "name"
+            }
         else:
             metric_name = metric_param
             metric_param_dict = {}

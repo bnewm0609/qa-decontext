@@ -5,7 +5,6 @@ import os
 from typing import Any
 
 import numpy as np
-
 import torch
 from pytorch_lightning import Callback, LightningModule, Trainer
 from pytorch_lightning.utilities.types import STEP_OUTPUT
@@ -13,7 +12,7 @@ from pytorch_lightning.utilities.types import STEP_OUTPUT
 
 class ValidationReportingCallback(Callback):
     """Report validation scores here because the default CSVLogger combines all statistics in one file.
-    
+
     Attributes:
         val_losses (list[float]): the validation losses for each batch.
         save_dir (str): the path to the directory to save the validation results in.
@@ -21,7 +20,7 @@ class ValidationReportingCallback(Callback):
 
     def __init__(self, save_dir: str) -> None:
         """Initialize the ValidatioReportingCallback.
-        
+
         Args:
             save_dir (str): the directory to save the validation results.
         """
@@ -50,9 +49,11 @@ class ValidationReportingCallback(Callback):
         batch_val_losses = [outputs.item()] * batch.input_ids.shape[0]
         self.val_losses.extend(batch_val_losses)
 
-    def on_validation_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
+    def on_validation_epoch_end(
+        self, trainer: Trainer, pl_module: LightningModule
+    ) -> None:
         """Save validation results after the validation epoch is over.
-        
+
         Args:
             trainer (Trainer): the trainer object controlling the training process.
         """
@@ -72,7 +73,7 @@ class ValidationReportingCallback(Callback):
 
 class SMATrainLossLoggerCallback(Callback):
     """Callback for calculating a Simple Moving Average of the training loss.
-    
+
     Attributes:
         window_size (int): how many batches to average over.
         last_losses (list[float]): the losses over the last at most window_size batches.
@@ -106,7 +107,7 @@ class SMATrainLossLoggerCallback(Callback):
             self.last_losses.append(loss)
         else:
             self.last_losses[self.curr_idx] = loss
-        
+
         # calculate the average and update the index of the oldest loss
         avg = np.mean(self.last_losses)
         self.curr_idx = (self.curr_idx + 1) % self.window_size

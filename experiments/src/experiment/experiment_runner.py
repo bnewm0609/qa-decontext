@@ -8,17 +8,11 @@ from typing import Optional, Union
 import numpy as np
 import pytorch_lightning as pl
 import torch
+from decontext_exp.data import Dataset, DatasetDict, load_dataset
+from decontext_exp.metrics import load_metrics
+from decontext_exp.model import ApiModel, FewShotModel, load_model
+from decontext_exp.utils import Predictions, RunMode, convert_paths_to_absolute, get_prediction_save_dir
 from omegaconf import DictConfig, OmegaConf
-
-from contrastive_tldrs.data import Dataset, DatasetDict, load_dataset
-from contrastive_tldrs.metrics import load_metrics
-from contrastive_tldrs.model import ApiModel, FewShotModel, load_model
-from contrastive_tldrs.utils import (
-    Predictions,
-    RunMode,
-    convert_paths_to_absolute,
-    get_prediction_save_dir,
-)
 
 
 class ExperimentRunner(object):
@@ -36,7 +30,7 @@ class ExperimentRunner(object):
 
     def __init__(self, args: DictConfig):
         """Initialize the Experiment Runner
-        
+
         Args:
             args (DictConfig): Experiment configuration arguments.
         """
@@ -77,11 +71,16 @@ class ExperimentRunner(object):
         if self.args.notes is not None:
             self.args.results_path += f"_note-{self.args.notes}"
 
-        os.makedirs(self.args.results_path, exist_ok=True)  # TODO log if this already exists?
+        os.makedirs(
+            self.args.results_path, exist_ok=True
+        )  # TODO log if this already exists?
 
         # Save the experiment config (if training)
         if self.args.mode == RunMode.TRAIN:
-            OmegaConf.save(config=self.args, f=os.path.join(self.args.results_path, "config.yaml"))
+            OmegaConf.save(
+                config=self.args,
+                f=os.path.join(self.args.results_path, "config.yaml"),
+            )
 
         # Set up logging (TODO)
 
@@ -95,7 +94,10 @@ class ExperimentRunner(object):
         self.data: DatasetDict = load_dataset(self.args, self.tokenizer)
 
     def train(
-        self, args: DictConfig, data: DatasetDict, model: Union[ApiModel, pl.LightningModule]
+        self,
+        args: DictConfig,
+        data: DatasetDict,
+        model: Union[ApiModel, pl.LightningModule],
     ) -> None:
         """Train the model.
 
@@ -145,7 +147,9 @@ class ExperimentRunner(object):
             #     model, dataset, _ = FewShotModel.create_messages_dataset(args, model, data)
             # else:
             # pass
-            model, dataset, fs_examples = FewShotModel.convert_to_few_shot(args, model, data)
+            model, dataset, fs_examples = FewShotModel.convert_to_few_shot(
+                args, model, data
+            )
             with (Path(save_dir) / "few_shot_train.jsonl").open("w") as f:
                 for instance in fs_examples:
                     f.write(json.dumps(instance) + "\n")
@@ -169,7 +173,10 @@ class ExperimentRunner(object):
 
             with (save_dir / "predictions.json").open("w") as f:
                 for line in predictions_json:
-                    f.write(json.dumps(line, default=dict, ensure_ascii=False) + "\n")
+                    f.write(
+                        json.dumps(line, default=dict, ensure_ascii=False)
+                        + "\n"
+                    )
 
             # Save the metadata if it exists:
             if predictions.metadata is not None:
@@ -211,7 +218,7 @@ class ExperimentRunner(object):
 
         Returns:
             Predictions: A wrapper for the model predictions and any metadata.
-        
+
         Raises:
             NotImplementedError: if the sublcasses don't override it.
         """
@@ -220,7 +227,7 @@ class ExperimentRunner(object):
 
     def evaluate(self, args: DictConfig, split: str) -> None:
         """Run evaluation on a set of predictions.
-        
+
         Given a results path in the args, load in the predictions and metadata and use them to
         evaluate the system against the gold data.
         The metrics used for evaluation are also specfied by the args.

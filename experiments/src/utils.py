@@ -9,14 +9,17 @@ from pathlib import Path
 from typing import Any, Iterator, Optional, Sequence, Union, cast
 
 import anthropic
+from decontext_exp.data import Dataset
 from filelock import FileLock
 from hydra.utils import to_absolute_path
 from omegaconf import DictConfig
 
-from contrastive_tldrs.data import Dataset
-
-
-OPENAI_CHAT_MODEL_NAMES = {"gpt-3.5-turbo", "gpt-3.5-turbo-0301", "gpt-4", "gpt-4-32k"}
+OPENAI_CHAT_MODEL_NAMES = {
+    "gpt-3.5-turbo",
+    "gpt-3.5-turbo-0301",
+    "gpt-4",
+    "gpt-4-32k",
+}
 
 
 def convert_paths_to_absolute(config: DictConfig):
@@ -27,7 +30,9 @@ def convert_paths_to_absolute(config: DictConfig):
     to_resolve = []
     for key in config:
         if isinstance(config[key], DictConfig):
-            to_resolve.append(config[key])  # check if there's anything to resolve in the sub-config
+            to_resolve.append(
+                config[key]
+            )  # check if there's anything to resolve in the sub-config
         elif "path" in key:
             config[key] = to_absolute_path(config[key])
     for sub_config in to_resolve:
@@ -78,30 +83,41 @@ def get_last_checkpoint_path(
     if all([key in kv_pair for kv_pair in ckpt_kv_pairs]):
         # extract val
         if best == "min":
-            sorted_kv_pairs = sorted(ckpt_kv_pairs, key=lambda kv_pair: float(kv_pair[key]))
+            sorted_kv_pairs = sorted(
+                ckpt_kv_pairs, key=lambda kv_pair: float(kv_pair[key])
+            )
         elif best == "max":
-            sorted_kv_pairs = sorted(ckpt_kv_pairs, key=lambda kv_pair: -float(kv_pair[key]))
+            sorted_kv_pairs = sorted(
+                ckpt_kv_pairs, key=lambda kv_pair: -float(kv_pair[key])
+            )
         else:
             raise ValueError("Argument `best` must be one of 'min' or 'max'")
         best_ckpt_idx = sorted_kv_pairs[0]["idx"]
     elif all(["val_loss" in kv_pair for kv_pair in ckpt_kv_pairs]):
         # extract val
-        sorted_kv_pairs = sorted(ckpt_kv_pairs, key=lambda kv_pair: float(kv_pair["val_loss"]))
+        sorted_kv_pairs = sorted(
+            ckpt_kv_pairs, key=lambda kv_pair: float(kv_pair["val_loss"])
+        )
         best_ckpt_idx = sorted_kv_pairs[0]["idx"]
     elif all(["step" in kv_pair for kv_pair in ckpt_kv_pairs]):
         sorted_kv_pairs = sorted(
-            ckpt_kv_pairs, key=lambda kv_pair: int(kv_pair["step"]), reverse=True
+            ckpt_kv_pairs,
+            key=lambda kv_pair: int(kv_pair["step"]),
+            reverse=True,
         )
         best_ckpt_idx = sorted_kv_pairs[0]["idx"]
     elif all(["epoch" in kv_pair for kv_pair in ckpt_kv_pairs]):
         sorted_kv_pairs = sorted(
-            ckpt_kv_pairs, key=lambda kv_pair: int(kv_pair["epoch"]), reverse=True
+            ckpt_kv_pairs,
+            key=lambda kv_pair: int(kv_pair["epoch"]),
+            reverse=True,
         )
         best_ckpt_idx = int(sorted_kv_pairs[0]["idx"])
     else:
         # Give up and return the file that has been modified least recently
         modification_times = [
-            {"mod_time": f.stat().st_mtime, "idx": i} for i, f in enumerate(checkpoint_files)
+            {"mod_time": f.stat().st_mtime, "idx": i}
+            for i, f in enumerate(checkpoint_files)
         ]
         sorted_kv_pairs = sorted(
             modification_times, key=lambda kv_pair: kv_pair["mod_time"], reverse=True  # type: ignore
@@ -142,7 +158,9 @@ def get_prediction_save_dir(args: DictConfig, split: str):
 def run_subprocess(cmd: list[str]) -> Iterator[str]:
     """Run cmd and yields output from stdout one line a time."""
 
-    popen = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
+    popen = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, universal_newlines=True
+    )
     if popen.stdout is None:
         # We can't read anything if stdout isn't defined. This check also makes mypy happy.
         return
@@ -156,7 +174,7 @@ def run_subprocess(cmd: list[str]) -> Iterator[str]:
 
 def hash_strs(*strs, lim=10) -> str:
     """Hash a list of strs.
-    
+
     Args:
         strs (list[str]): the strings to hash.
         lim (int): how many characters the output string should have.
@@ -214,7 +232,9 @@ def get_openai_price_estimate(
         "claude": 0.01102,
     }
 
-    tokens_are_provided = prompt_tokens is not None and completion_tokens is not None
+    tokens_are_provided = (
+        prompt_tokens is not None and completion_tokens is not None
+    )
 
     price_per_1k_sample = -1.0
     price_per_1k_prompt = -1.0
@@ -234,9 +254,13 @@ def get_openai_price_estimate(
                     ]
                 )
             elif "claude" in model_name:
-                total_tokens += anthropic.count_tokens(example[dataset.x_label])
+                total_tokens += anthropic.count_tokens(
+                    example[dataset.x_label]
+                )
             else:
-                total_tokens += len(dataset.tokenizer(example[dataset.x_label]).input_ids)
+                total_tokens += len(
+                    dataset.tokenizer(example[dataset.x_label]).input_ids
+                )
 
             # if tokens_used isn't provided, then estimate the number of tokens
             # used by assuming that max_gen_len tokens are always geneated.
@@ -244,10 +268,17 @@ def get_openai_price_estimate(
             if not tokens_are_provided:
                 total_tokens += max_gen_len
         print("Total tokens:", total_tokens)
-        print("Total tokens (-generation):", total_tokens - (max_gen_len * len(dataset)))
+        print(
+            "Total tokens (-generation):",
+            total_tokens - (max_gen_len * len(dataset)),
+        )
 
-        total_price_per_1k = (total_tokens - (max_gen_len * len(dataset))) * price_per_1k_sample
-        total_price_per_1k += (max_gen_len * len(dataset)) * price_per_1k_prompt
+        total_price_per_1k = (
+            total_tokens - (max_gen_len * len(dataset))
+        ) * price_per_1k_sample
+        total_price_per_1k += (
+            max_gen_len * len(dataset)
+        ) * price_per_1k_prompt
         return max(-1, total_price_per_1k / 1_000)
     elif dataset is None and tokens_are_provided:
         # If dataset isn't provided then we can't differentiate between the number of prompt
@@ -267,6 +298,7 @@ def get_openai_price_estimate(
 @dataclass
 class Predictions:
     """Class for storing predictions returned from models."""
+
     predictions: Sequence[str]
     metadata: Optional[list[dict[str, Any]]] = None
 
@@ -282,14 +314,14 @@ class RunMode(str, Enum):
     EVALUATE = "evaluate"
 
 
-OPENAI_CACHE_DIR = "/home/benjaminn/nfs/.cache/openai/"
+OPENAI_CACHE_DIR = f"{Path.home()}/nfs/.cache/openai/"
 
 
 class Cache:
     """Cache for storing results of calls to models bethind APIs.
 
     This is a singleton object and should be initialized by calling `Cache.load`.
-    
+
     Attributes:
         _cache: A dict representing the actual cache.
         cache_dir: the directory where the cache is saved.
@@ -297,11 +329,13 @@ class Cache:
         lock: A FileLock to prevent concurrent edits to the cache file.
     """
 
-    def __init__(self, cache: dict, cache_dir: str, enforce_cached: bool = False) -> None:
+    def __init__(
+        self, cache: dict, cache_dir: str, enforce_cached: bool = False
+    ) -> None:
         """Initialize the Cache.
-        
+
         Cache should be loaded in using Cache.load rather than the constructor.
-        
+
         Args:
             cache (dict): the key-value store that makes up the cache.
             cache_dir (str): the directory where the cache is saved.
@@ -315,9 +349,11 @@ class Cache:
         self.lock = FileLock(cache_filelock_path)
 
     @classmethod
-    def load(cls, cache_dir=OPENAI_CACHE_DIR, enforce_cached: bool = False) -> "Cache":
+    def load(
+        cls, cache_dir=OPENAI_CACHE_DIR, enforce_cached: bool = False
+    ) -> "Cache":
         """Return an instance of a cache at the location pointed to by cache_dir.
-        
+
         If `enforce_cache` is True, an error is thrown if the queried result is not in the cache.
 
         Args:
@@ -341,7 +377,7 @@ class Cache:
 
     def save(self) -> None:
         """Save the cache to the cache path.
-        
+
         Do not allow for interruptions because these corrupt the cache, making it impossible to load
         in subsequent runs.
         """
@@ -374,7 +410,7 @@ class Cache:
         Args:
             key (str): The key to the cache.
             fn (Callable): The function to call upon a cache miss.
-        
+
         Returns:
             The value stored at the key or the result of calling the function.
         """

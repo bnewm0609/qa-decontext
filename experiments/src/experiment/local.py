@@ -4,28 +4,19 @@ from typing import Any, Optional, Union, cast
 
 import pytorch_lightning as pl
 import torch
+from decontext_exp.callbacks import SMATrainLossLoggerCallback, ValidationReportingCallback
+from decontext_exp.data import Dataset, DatasetDict, FilterDataset
+from decontext_exp.experiment.experiment_runner import ExperimentRunner
+from decontext_exp.model import GalacticaModel, LocalClassificationModel, LocalModel, LocalPEFTModel
+from decontext_exp.utils import Predictions, get_last_checkpoint_path
 from omegaconf import DictConfig
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import CSVLogger, WandbLogger
 
-from contrastive_tldrs.callbacks import (
-    SMATrainLossLoggerCallback,
-    ValidationReportingCallback,
-)
-from contrastive_tldrs.data import Dataset, DatasetDict, FilterDataset
-from contrastive_tldrs.experiment.experiment_runner import ExperimentRunner
-from contrastive_tldrs.model import (
-    GalacticaModel,
-    LocalClassificationModel,
-    LocalModel,
-    LocalPEFTModel,
-)
-from contrastive_tldrs.utils import Predictions, get_last_checkpoint_path
-
 
 class LocalExperimentRunner(ExperimentRunner):
     """Wrapper for running local experiments
-    
+
     Local experiments are ones whose models are run locally, using a combination of pytorch-lightening and
     Huggingface (as opposed to models behind APIs).
 
@@ -34,7 +25,7 @@ class LocalExperimentRunner(ExperimentRunner):
         _hf_model: the underlying transormers.PreTrainedModel that is wrapped in a PytorchLightning trainer.
         trainer: the pl.Trainer that wraps the Huggingface model and allows for easy training and inference.
     """
-    
+
     def initialize_experiment(self) -> None:
         """Initialize the experiment.
 
@@ -48,7 +39,7 @@ class LocalExperimentRunner(ExperimentRunner):
             return
 
         # initialize the trainer, overwrite self.model to be the pytorch lightning module
-        self._hf_model = self.model
+        self._hf_model = self.model  # type: ignore
         if self.args.model.prediction_type == "sequence":
             if self.args.model.get("peft") is not None:
                 local_model_cls = LocalPEFTModel
@@ -60,7 +51,9 @@ class LocalExperimentRunner(ExperimentRunner):
             local_model_cls = LocalClassificationModel
 
         num_train_batches = (
-            len(self.data.train_dataset.dataloader) if self.data.train_dataset.dataloader else None
+            len(self.data.train_dataset.dataloader)
+            if self.data.train_dataset.dataloader
+            else None
         )
         self.model = local_model_cls(
             self.args,
@@ -75,7 +68,9 @@ class LocalExperimentRunner(ExperimentRunner):
                 save_dir=os.path.join(self.args.results_path, "logs"),
                 name=None,
                 version=None,
-                flush_logs_every_n_steps=self.args.model.get("flush_logs_every_n_steps", 100),
+                flush_logs_every_n_steps=self.args.model.get(
+                    "flush_logs_every_n_steps", 100
+                ),
             )
         ]
 
@@ -105,7 +100,9 @@ class LocalExperimentRunner(ExperimentRunner):
                 filename=filename,
                 auto_insert_metric_name=False,
             ),
-            ValidationReportingCallback(save_dir=os.path.join(self.args.results_path, "logs")),
+            ValidationReportingCallback(
+                save_dir=os.path.join(self.args.results_path, "logs")
+            ),
             LearningRateMonitor(logging_interval="step"),
             SMATrainLossLoggerCallback(window_size=25),
         ]
@@ -119,7 +116,9 @@ class LocalExperimentRunner(ExperimentRunner):
             else None,  # smnth like torch.cuda.device_count()
             max_epochs=self.args.model.max_epochs,
             check_val_every_n_epoch=self.args.model.check_val_every_n_epoch,
-            default_root_dir=os.path.join(self.args.results_path, "checkpoints"),
+            default_root_dir=os.path.join(
+                self.args.results_path, "checkpoints"
+            ),
             log_every_n_steps=self.args.model.log_every_n_steps,
             val_check_interval=self.args.model.val_check_interval,
             callbacks=callbacks,
@@ -130,10 +129,18 @@ class LocalExperimentRunner(ExperimentRunner):
             # strategy="deepspeed_stage_3_offload",
         )  # can we defer intializing these if we don't need them (e.g. if we are just evaluating?)
 
-        print("[LocalExperimentRunner.initialize_experiment]", self.trainer._logger_connector)
-        print("[LocalExperimentRunner.initialize_experiment]", self.trainer._loggers)
+        print(
+            "[LocalExperimentRunner.initialize_experiment]",
+            self.trainer._logger_connector,
+        )
+        print(
+            "[LocalExperimentRunner.initialize_experiment]",
+            self.trainer._loggers,
+        )
 
-    def train(self, args: DictConfig, data: DatasetDict, model: pl.LightningModule) -> None:
+    def train(
+        self, args: DictConfig, data: DatasetDict, model: pl.LightningModule
+    ) -> None:
         """Train or finetune the model.
 
         This method is called to start training a model. How this training starts will depend on the subclass.
@@ -164,21 +171,25 @@ class LocalExperimentRunner(ExperimentRunner):
             args: config for the run
             dataloader: either the dev or test dataloader from a Dataset object
             model: the model to use to generate the predictions
-        
+
         Returns:
             Predictions: A wrapper for the model predictions.
         """
         # The model checkpoint to use to generate the predictions can either be specified by the config
         # (and therefore at the command line) or automatically determined (which is the default).
         ckpt_path = args.model.get(
-            "ckpt_path", get_last_checkpoint_path(args, key="rouge", best="max")
+            "ckpt_path",
+            get_last_checkpoint_path(args, key="rouge", best="max"),
         )
         # Generate the predictions
         print("Prompt:")
         print(dataset.dataloader.dataset[0][dataset.x_label])
-        want_to_continue = input("Do you want to continue with this prompt? y/N> ")
+        want_to_continue = input(
+            "Do you want to continue with this prompt? y/N> "
+        )
         if want_to_continue != "y":
             import sys
+
             sys.exit(0)
 
         predictions: Union[
@@ -191,12 +202,17 @@ class LocalExperimentRunner(ExperimentRunner):
         )
 
         metadata: Optional[list[dict[str, Any]]] = None
-        if self.args.model.prediction_type in ("sequence", "sequence-decoder-only"):
+        if self.args.model.prediction_type in (
+            "sequence",
+            "sequence-decoder-only",
+        ):
             prediction_outputs = [
                 prediction
                 for prediction_batch in predictions
                 for prediction in self.tokenizer.batch_decode(
-                    prediction_batch, skip_special_tokens=True, clean_up_tokenization_spaces=True
+                    prediction_batch,
+                    skip_special_tokens=True,
+                    clean_up_tokenization_spaces=True,
                 )
             ]
         elif self.args.model.prediction_type == "classification":
@@ -209,7 +225,9 @@ class LocalExperimentRunner(ExperimentRunner):
                     "label_map": dataset.id2label,
                 }
                 for prediction_batch in predictions
-                for prob, label in zip(prediction_batch["probs"], prediction_batch["labels"])
+                for prob, label in zip(
+                    prediction_batch["probs"], prediction_batch["labels"]
+                )
             ]
 
             prediction_outputs = [
