@@ -229,13 +229,12 @@ def science_pipeline_gold_qae(
 def science_pipeline_pred_questions(
     in_data: List[dict], start: Optional[int] = 0, limit: Optional[int] = None
 ) -> List[dict]:
-    # with open("data/full_text_db_with_missing_cite_ids_extended.json") as f:
     limit = len(in_data) if limit is None else limit
     out_data = []
 
     pred_questions = {}
     snippet_files = glob.glob(
-        "/net/nfs.cirrascale/s2-research/benjaminn/s2-contrastive-tldrs-internal/results/pipeline/Q"
+        "results/pipeline/Q"
         "GEN-gpt3-curie-gpt3-u9M0ueygQz-gldFalse_QA-gpt3-fewshot-qaspar-qa-gpt3-dense-lIK9KPrm0N-gld"
         "eFalse-gldaFalse_SYNTH-gpt3-curie-gpt3-endtoend-CtFXSxKsj9-trn-science-pipeline_gold_qae/*/"
         "paper_snippet.json"
