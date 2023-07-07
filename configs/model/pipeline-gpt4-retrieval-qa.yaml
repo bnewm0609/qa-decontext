@@ -1,0 +1,37 @@
+interface: pipeline
+seed: 828
+_id: "QGEN-${.qgen._id}_QA-${.qa._id}_SYNTH-${.synth._id}"
+qgen:
+  _id: "${.model}-${.generation}-${hash:${.overrides}}-gld${.use_gold}"
+  use_gold: ${..qa.use_gold_evidence}
+  data: template-completion-qgen-science
+  model: openai_completion
+  generation: gpt3
+  overrides:
+    model.name: "text-davinci-003"
+  metrics:
+    - "em"
+    - "rouge"
+qa:
+  # _id: "${.model}-${.generation}-${.retriever}-${hash:${.overrides}}-glde${.use_gold_evidence}-glda${.use_gold_answers}"
+  _id: "${.model}-${.generation}-${.retriever}-glde${.use_gold_evidence}-glda${.use_gold_answers}"
+  use_gold_evidence: ${.use_gold_answers}
+  use_gold_answers: False
+  data: template-chatgpt3-qa-science
+  model: chat-gpt4
+  generation: gpt3
+  retriever: "dense"
+  # overrides:
+  #  model.name: "gpt-4-32k"
+  metrics:
+    - "em"
+    - "rouge"
+    - "bert_score"
+synth:
+  _id: "${.model}-${.generation}-${hash:${.overrides}}"
+  data: "template-endtoend-tsp"
+  model: openai_completion
+  generation: gpt3-endtoend
+  overrides:
+    model.name: text-davinci-003
+    data.template: "configs/templates/gold_answer_user_intent_no_title_completion.yaml"

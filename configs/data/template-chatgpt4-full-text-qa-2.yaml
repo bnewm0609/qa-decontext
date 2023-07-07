@@ -1,0 +1,29 @@
+name: "template"
+base_dir: "data/qa_gold_docs/"
+train:
+  _id: "trn-${extract_path:${..base_dir},2}-tmp${hash:${..template}}"  # for model checkpointing
+  path: "${..base_dir}/train.jsonl"
+val:
+  _id: "val-${extract_path:${..base_dir},2}"  # for model checkpointing
+  path: "${..base_dir}/val.jsonl"
+test:
+  _id: "tst-${extract_path:${..base_dir},2}"  # for model checkpointing
+  path: "${..base_dir}/test.jsonl"
+template:
+  - role: system
+    content: |
+      You are an assistant to a scientist in the field of natural language processing.
+  - role: user
+    content: |
+      Using the given scientific paper, answer the  question about "text snippet" below.
+
+      Information from the paper:
+
+      Full Text:
+
+      {{full_text}}
+      
+      Text snippet: "{{sentence}}"
+
+      Given the above information, please answer the following question about the text snippet. Keep your answer concise and informative. It should be at most a sentence long. If you cannot find the answer, then write "No answer.":
+      Question: {{question}}

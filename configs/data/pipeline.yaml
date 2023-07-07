@@ -1,0 +1,11 @@
+name: "pipeline"
+base_dir: "data/emnlp23/science/pipeline/"
+train:
+  _id: "trn-${extract_path:${..base_dir},2}"  # for model checkpointing
+  path: "${..base_dir}/train.jsonl"
+val:
+  _id: "val-${extract_path:${..base_dir},2}"  # for model checkpointing
+  path: "${..base_dir}/val.jsonl"
+test:
+  _id: "tst-${extract_path:${..base_dir},2}"  # for model checkpointing
+  path: "${..base_dir}/test.jsonl"

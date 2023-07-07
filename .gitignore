@@ -1,2 +1,5 @@
 *.egg-info/
 __pycache__
+data/full_texts.json
+results
+outputs

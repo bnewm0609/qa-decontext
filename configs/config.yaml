@@ -1,0 +1,13 @@
+defaults:
+  - data: pipeline
+  - model: pipeline_better_qgen
+  - generation: gpt3-endtoend
+  - _self_
+debug: False
+device: ???
+mode: "predict"
+notes: null
+results_path: "results/${.task}/${.model._id}-${.data.train._id}"
+task: "pipeline"
+timestamp: ???
+wandb: False

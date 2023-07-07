@@ -1,0 +1,24 @@
+accumulate_grad_batches: 1
+batch_size: 32
+eval_batch_size: 32
+lr: 1e-5
+warmup_ratio: 0.0
+max_epochs: 5
+seed: 780
+interface: "local"
+prediction_type: "sequence"
+# other trainer options
+precision: 32
+#  multi-gpu
+distributed: False
+rank: -1
+world_size: 1
+#  logging
+log_every_n_steps: 1
+max_steps: null
+val_check_interval: 1.0
+check_val_every_n_epoch: 1
+#   debugging
+fast_dev_run: False
+overfit_batches: 0.0
+few_shot: null

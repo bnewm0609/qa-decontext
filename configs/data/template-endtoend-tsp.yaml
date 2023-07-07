@@ -1,0 +1,39 @@
+name: "template"
+base_dir: "data/emnlp23/science/endtoend"
+train:
+  _id: "trn-${extract_path:${..base_dir},2}-tmp${hash:${..template}}"  # for model checkpointing
+  path: "${..base_dir}/train.jsonl"
+val:
+  _id: "val-${extract_path:${..base_dir},2}"  # for model checkpointing
+  path: "${..base_dir}/val.jsonl"
+test:
+  _id: "tst-${extract_path:${..base_dir},2}"  # for model checkpointing
+  path: "${..base_dir}/test.jsonl"
+template:
+  - role: system
+    content: |
+      You are a scientist in the field of natural language processing.
+  - role: user
+    content: |
+      Pretend you are a scientist in the field of natural language processing. Using the given information from the scientific paper, rewrite the "text snippet" so it stands alone. First I will provide the information and then I will provide the instructions.
+
+      Information from the paper:
+      {{context}}
+      
+      Instructions:
+      Using the given information, please rewrite the text snippet according to the following instructions:
+      * Keep as close to the original wording of the snippet as possible. Put any additions in between square brackets.
+      * Resolve any vague or unclear references in the snippet (e.g. "our approach" or "our method"). Put any clarifying text between square brackets. For example "Our approach performs well" becomes "The authors' approach [bidirectional language modeling] performs well".
+      * Define any specific terminology or acronyms that other scientists will not be familiar with between square brackets. For example "Our task is MT" becomes "The authors' task is MT [machine translation]."
+      * Remove discourse markers (like "in conclusion", "in this section", "for instance", etc.)
+      * Replace first-person pronouns with third person pronouns. Replace "we" with "the authors"
+      * Remove references to Sections, Figures, or Tables.
+      * Fix the grammar and spelling
+
+      Here are examples of rewritten snippets:
+      Text snippet: "The corpus consists of 53 documents, which contain an average number of 156.1 sentences per document, each with 19.55 tokens on average."
+      Rewrite: "The authors' corpus consists of 53 documents [medical case reports with medical entity annotation which are used for annotating the document for medically relevant categories such as conditions, findings and other things], which contain an average number of 156.1 sentences per document, each with 19.55 tokens on average."
+
+      Please rewrite this snippet according to the instructions. 
+      Text snippet: {{sentence}}
+      Rewrite:
