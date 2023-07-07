@@ -1,5 +1,6 @@
 *.egg-info/
 __pycache__
 data/full_texts.json
+data/emnlp23/docs-for-retrieval
 results
 outputs
