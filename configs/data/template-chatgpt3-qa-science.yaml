@@ -1,0 +1,34 @@
+name: "template"
+base_dir: "data/qa_gold_docs/"
+train:
+  _id: "trn-${extract_path:${..base_dir},2}-tmp${hash:${..template}}"  # for model checkpointing
+  path: "${..base_dir}/train.jsonl"
+val:
+  _id: "val-${extract_path:${..base_dir},2}"  # for model checkpointing
+  path: "${..base_dir}/val.jsonl"
+test:
+  _id: "tst-${extract_path:${..base_dir},2}"  # for model checkpointing
+  path: "${..base_dir}/test.jsonl"
+template:
+  - role: system
+    content: |
+      You are an assistant to a scientist in the field of natural language processing.
+  - role: user
+    content: |
+      Using the given information from the scientific paper, answer the  question about "text snippet" below.
+
+      Information from the paper:
+      Title: "{{title}}"
+
+      Abstract: "{{abstract}}"
+      {% for uniq_para in unique_evidence %}
+      Paragraph with potentially helpful information:
+      "{{ uniq_para["paragraph"].strip() }}"
+      {% endfor %}
+      {% if context_section_header %}Section of the paper the snippet comes from: "{{context_section_header}}"{% endif %}
+      Paragraph with the snippet: "{{context_paragraph}}"
+
+      Text snippet: "{{sentence}}"
+
+      Given the above information, please answer the following question. Keep your answer concise and informative. It should be at most a sentence long. If you cannot find the answer, then write "No answer.":
+      Question: {{question}}
