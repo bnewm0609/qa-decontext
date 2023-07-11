@@ -153,14 +153,16 @@ class DefaultHydraStep(PipelineStep):
 
     def create_exp_snippet(self, snippet: PaperSnippet):
         assert snippet.context.paragraph_with_snippet is not None
-        assert snippet.context.paragraph_with_snippet.section is not None
+        section: str = ""
+        if snippet.context.paragraph_with_snippet.section is not None:
+            section = snippet.context.paragraph_with_snippet.section
         exp_snippet = ExperimentPaperSnippet(
             idx="0",
             paper_id="0",
             title=snippet.context.title,
             abstract=snippet.context.abstract,
             full_text=[],
-            section_header=snippet.context.paragraph_with_snippet.section,
+            section_header=section,
             context=snippet.context.paragraph_with_snippet.paragraph,
             snippet=snippet.snippet,
             cited_ids=[],
