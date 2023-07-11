@@ -1,0 +1,41 @@
+template:
+  - role: system
+    content: |
+      You are a scientist in the field of natural language processing. Using the given information from a scientific paper, rewrite the given text snippet so it stands alone. To do this:
+      * Remove discourse markers (like "in conclusion", "in this section", "for instance", etc.)
+      * Replace first-person pronouns with placeholders. Replace "we" with "[REF0]" and "our" with "[REF0's]".
+      * Remove time-specific words like "current"
+      * Make other surface-level changes to fix grammar
+      * Resolve any vague or unclear references in the snippet (e.g. "our approach" or "our method")
+      * Define any specific terminology or acronyms that other scientists will not be familiar with.
+  - role: user
+    content: |
+      Using the following scientific paper, rewrite the "text snippet" that follows so it stands alone. The "text snippet" will be quoted in an article using the Chicago Manual of Style. Rewrite the "text snippet" into quote format by adding the answers in-between square brackets.
+
+      Paper:
+      
+      {{full_text}}
+    
+      Text Snippet: "{{sentence}}"
+
+      Instructions:
+
+      Using only the given information, please rewrite the text snippet into quote format. Specifically add the following clarifying information in square brackets following the Chicago Manual of Style:
+      * Resolve any vague or unclear references in the snippet (e.g. "our approach" or "our method"). Put any clarifying text between brackets. For example "Our approach performs well" becomes "[REF0's] approach [bidirectional language modeling] performs well".
+      * Define any specific terminology or acronyms that other scientists will not be familiar with. For example "Our task is MT" becomes "[REF0's] task is MT [machine translation]."
+      * If needed, add additional short clarifications that are necessary for an expert reader to understand the broader context of the quote. Only add up to a single sentence and put the sentence in between square brackets.
+
+      After adding clarifying information:
+      * Replace first-person pronouns with a placeholder. Replace "we" with "[REF0]" and "our" with "[REF0's]".
+      * Remove discourse markers (like "in conclusion", "in this section", "for instance", etc.)
+      * Citations are marked as BIBREF or (Author Name, Year). Keep these the same. Do not add any additional citations.
+      * Remove any references to Figures ("FIGREF") and Tables ("TABREF")
+      * Fix the grammar
+
+      Reminders:
+      * Follow the Chicago Manual of Style for quotes by putting all added text between square brackets.
+      * The rewritten snippet is a quote, so the word order should closely match the original snippet's.
+      * Ignore irrelevant information.
+
+      Please rewrite this snippet according to the instructions and the given information.
+      Text snippet: "{{sentence}}"

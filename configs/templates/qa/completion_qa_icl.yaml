@@ -1,0 +1,24 @@
+template: |
+  Using the given information from the scientific paper, answer the  question about "text snippet" below.
+
+  Information from the paper:
+  Title: "{{title}}"
+
+  Abstract: "{{abstract}}"
+  {% for uniq_para in unique_evidence %}
+  Paragraph with potentially helpful information:
+  "{{ uniq_para["paragraph"].strip() }}"
+  {% endfor %}
+  {% if context_section_header %}Section of the paper the snippet comes from: "{{context_section_header}}"{% endif %}
+  Paragraph with the snippet: "{{context_paragraph}}"
+
+  Text snippet: "{{sentence}}"
+
+  Given the above information, please answer the following question. Add as much detail as possible. It should be at most a sentence long. If you cannot find the answer, then write "No answer.":
+  Example:
+  Question: What pipeline is being refered to?
+  Bad answer: "The pipeline from (Benetka et al., 2017)."
+  Good answer: "It refers to a process that involves a series of steps to extract high-quality structured representations of financial and business entities from thousands of financial news articles."
+  
+  Question: {{question}}
+  Good answer:

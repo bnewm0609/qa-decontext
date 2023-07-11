@@ -1,0 +1,10 @@
+_id: "nb-${.num_beams}_mgl-${.max_gen_length}"
+num_beams: 5
+max_gen_length: 150
+metrics:
+ - "em"
+ - "rouge"
+ - "bert_score"
+ - "question_pct"
+ - "question_num"
+ - "question_snippet_overlap"

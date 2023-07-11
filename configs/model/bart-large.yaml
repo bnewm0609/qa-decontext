@@ -1,0 +1,13 @@
+defaults:
+  - defaults
+  - _self_
+
+_id: "mn-${esc_slash:${.name}}_sd-${.seed}_bs-${.batch_size}_ga-${.accumulate_grad_batches}_ep-${.max_epochs}_lr-${.lr}_wu-${.warmup_ratio}"
+batch_size: 10
+eval_batch_size: 30
+accumulate_grad_batches: 3
+lr: 1e-5
+warmup_ratio: 0.1
+name: "facebook/bart-large"
+max_epochs: 90
+seed: 780

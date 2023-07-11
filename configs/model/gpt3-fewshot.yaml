@@ -1,0 +1,19 @@
+defaults:
+  - defaults
+  - _self_
+
+_id: "oa${esc_slash:${.name}}s${.seed}fs${.few_shot._id}"
+num_shots: 1
+name: "text-davinci-003"
+max_epochs: 1
+seed: 1  # Openai doesn't use this, but we do for marking our experiments and choosing few-shot examples
+interface: "api"
+# for_sure_run_train_command_and_spend_dollars: False
+few_shot:
+  _id: "ns${.num_shots}${hash:3,${.instructions}, ${.x_prefix}, ${.y_prefix}}"
+  instructions: "The following sentence compares and contrasts two scientific papers, [Paper 1] and [Paper 2]. Write questions to ask for definitions of any acronyms, abbreviations, or unknown terms in the sentence. If there aren't any terms that require definitions, just write \"clarification unnecessary\"."
+  x_prefix: "Sentence: \""
+  x_suffix: "\""
+  y_prefix: "Questions:"
+  num_shots: 0
+  ic_examples: null

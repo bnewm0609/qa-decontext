@@ -1,0 +1,28 @@
+template: |
+  The following text snippet is extracted from a scientific paper. Rewrite the "text snippet" into quote format by adding in any clarifying information from the paper in square brackets.
+
+  Paper Information:
+
+  Title: "{{title}}"
+
+  Abstract: "{{abstract}}"
+  {% if context_section_header %}
+  Header of section with the snippet: "{{context_section_header}}"
+  {% endif %}
+  Paragraph with the snippet: "{{context_paragraph}}"
+
+  Text snippet: "{{sentence}}"
+
+  Instructions:
+  
+  Using the given information, add the following clarifying information in square brackets:
+  * Resolve any vague or unclear references in the snippet (e.g. "our approach" or "our method"). Put any clarifying text between brackets. For example "Our approach performs well" becomes "[REF0's] approach [bidirectional language modeling] performs well".
+  * Define any specific terminology or acronyms that other scientists will not be familiar with. For example "Our task is MT" becomes "[REF0's] task is MT [machine translation]."
+  * If needed, add additional short clarifications that are necessary for an expert reader to understand the broader context of the quote. Only add up to a single sentence and put the sentence in between square brackets.
+
+  Additionally:
+  * Replace first-person pronoun "we" with "[REF0]" and "our" with "[REF0's]".
+  * All of the answers added should be between square brackets "[]"
+  * Remove any references to Figures ("FIGREF") and Tables ("TABREF")
+
+  Rewrite:

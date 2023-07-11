@@ -1,0 +1,4 @@
+_id : "filter"
+metrics:
+ - "prf1"
+ - "average_precision"

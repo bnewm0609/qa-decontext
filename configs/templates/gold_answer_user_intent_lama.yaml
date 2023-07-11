@@ -1,0 +1,13 @@
+template: |
+  The following text snippet is extracted from a scientific paper. Incorporate the answers to the following questions to clarify the snippet. Only include information in the Snippet, Questions, and Answers in the new snippet you write.
+  Additionally:
+  * Replace first-person pronoun "we" with "[REF0]" and "our" with "[REF0's]".
+  * All of the answers added should be between square brackets "[]"
+  * Remove any references to Figures ("FIGREF") and Tables ("TABREF")
+
+  {% for question in questions %}
+  Question: {{ question['question'] }}
+  Answer: {{ question['answer_text'] }}
+  {% endfor %}
+  Text snippet: "{{sentence}}"
+  Rewrite:

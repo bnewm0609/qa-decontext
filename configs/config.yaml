@@ -1,0 +1,13 @@
+defaults:
+  - data: rewrite
+  - model: bart-large
+  - generation: rewrite
+  - _self_
+debug: False
+device: ???
+mode: "train"
+notes: null
+results_path: "results/${.task}/${.model._id}-${.data.train._id}"
+task: "decontext/qgen"
+timestamp: ???
+wandb: False

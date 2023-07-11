@@ -1,0 +1,26 @@
+defaults:
+  - defaults
+  - _self_
+
+_id: "oa${esc_slash:${.name}}s${.seed}fs${.few_shot._id}"
+num_shots: 1
+name: "gpt-4"
+max_epochs: 1
+seed: 1  # Openai doesn't use this, but we do for marking our experiments and choosing few-shot examples
+interface: "api"
+# for_sure_run_train_command_and_spend_dollars: False
+few_shot:
+  instructions: "You are a scientist in the field of natural language processing. Using the given information from a scientific paper, rewrite the given text snippet so it stands alone. To do this:\n* Remove discourse markers (like \"in conclusion\", \"in this section\", \"for instance\", etc.)\n* Replace first-person pronouns with third person pronouns. Replace \"we\" with \"the authors\"\n* Remove time-specific words like \"current\"\n* Make other surface-level changes to fix grammar\n* Resolve any vague or unclear references in the snippet (e.g. \"our approach\" or \"our method\")\n* Define any specific terminology or acronyms"
+  x_prefix: "Information from the paper:\n"
+  # x_suffix: ""
+  y_prefix: "Can you please rewrite this snippet according to the instructions above?"
+  _id: "ns${.num_shots}${hash:3,${.instructions}, ${.x_prefix}, ${.y_prefix}}"
+  num_shots: 0
+  selection_strategy: "first"
+  # _id: "ns${.ic_examples}${hash:3,${.instructions}, ${.x_prefix}, ${.y_prefix}}"
+  ic_examples: null #["1912.01214.1.1.1", "1912.01214.2.1.2", "1912.01214.3.1.1"] # null
+  messages:
+    - role: "system"
+      content: "${..instructions}"
+    - role: "user"
+      content: "{{example}}\n\nPlease rewrite this snippet according to the instructions."

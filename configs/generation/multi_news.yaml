@@ -1,0 +1,7 @@
+_id: "nb-${.num_beams}_mgl-${.max_gen_length}"
+num_beams: 8
+max_gen_length: 512
+metrics:
+ - "em"
+ - "rouge"
+ - "bert_score"

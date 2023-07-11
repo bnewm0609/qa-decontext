@@ -1,0 +1,10 @@
+defaults:
+  - defaults
+  - _self_
+
+_id: "mn-${.name}_sd-${.seed}"
+name: "baseline_concat_titles"
+seed: 934
+interface: "local"
+prediction_type: "sequence"
+batch_size: 1

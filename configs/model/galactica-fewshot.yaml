@@ -1,0 +1,22 @@
+defaults:
+  - defaults
+  - _self_
+
+_id: "mn-${esc_slash:${.name}}_sd-${.seed}_fs-${.few_shot._id}"
+batch_size: 1
+eval_batch_size: 4
+accumulate_grad_batches: 32
+lr: 3e-5
+warmup_ratio: 0.1
+name: "facebook/galactica-1.3b"
+max_epochs: 90
+seed: 780
+precision: 16
+prediction_type: "sequence-decoder-only"
+few_shot:
+  _id: "ns${.num_shots}_i${hash:${.instructions}, ${.x_prefix}, ${.y_prefix}}"
+  instructions: "The following sentences compare and contrast two papers. However, they often are missing key information like the similarity between the papers, clarifications of vague language, definitions of specific terms or acronyms, additional information that would improve the summary. Following the examples below, write questions that ask for this additional information."
+  x_prefix: "Sentence:"
+  y_prefix: "Questions:"
+  num_shots: 5
+  ic_examples: null

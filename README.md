@@ -9,7 +9,7 @@ pip install decontext
 
 Or if you prefer to install locally:
 ```bash
-conda create  -n decontext python=3.9
+conda create -n decontext python=3.9
 conda activate decontext
 git clone https://github.com/bnewm0609/qa-decontextualization.git
 pip install -e .
@@ -54,7 +54,7 @@ from decontext import PaperContext, Section
 context = PaperContext(
     title="Identifying Dogmatism in Social Media: Signals and Models",
     abstract="We explore linguistic and behavioral features of dogmatism in social media and construct statistical models that can identify dogmatic comments. Our model is based on a corpus of Reddit posts, collected across a diverse set of conversational topics and annotated via paid crowdsourcing. We operationalize key aspects of dogmatism described by existing psychology theories (such as over-confidence), finding they have predictive power. We also find evidence for new signals of dogmatism, such as the tendency of dogmatic posts to refrain from signaling cognitive processes. When we use our predictive model to analyze millions of other Reddit posts, we find evidence that suggests dogmatism is a deeper personality trait, present for dogmatic users across many different domains, and that users who engage on dogmatic comments tend to show increases in dogmatic posts themselves.",
-    paragraph_with_snippet=context_paragraph_3
+    paragraph_with_snippet=context_paragraph_3,
     additional_paragraphs=[context_paragraph_1, context_paragraph_2]
 )
 ```
@@ -112,6 +112,7 @@ config = Config(
 )
 
 decontext(snippet, context, config=config)
+```
 
 4. Debugging
 For debugging purposes, it's useful to have access to the intermediate outputs of the pipeline. To show these, set the `return_metadata` argument to `True`. The returned `metadata` is an instance of `decontext.Metadata`:
@@ -138,6 +139,37 @@ new_snippet, metadata = decontext(snippet, paper_1, return_metadata=True)
         "cost": <cost_of_run_in_USD>
     })
 ```
+
+## Customizing Pipeline Components
+If you want to use your own question generation, question answering, or synthesis models as part of the pipeline, you can incorporate them easily.
+Each step of the pipeline takes a `decontext.PaperSnippet` instance. This is the data structure that pipeline operates over. Each step fills in a field of the `PaperSnippet`.
+* question generation fills in `PaperSnippet.question` by calling `PaperSnippet.add_question(quest)`
+* question answering optionally fills in `PaperSnippet.additional_paragraphs` through retrieval by calling `PaperSnippet.add_paragraphs()`, and fills in `PaperSnippet.answers` by calling `PaperSnippet.add_answer()`.
+* synthesis fills in `PaperSnippet.decontextualized_snippet` by calling `PaperSnippet.add_decontextualized_snippet()`
+The custom component must call the relevant function for it's part.
+
+Your custom component should inherit from the `decontext.PipelineStep` class and override the `run` method. The method takes only one argument - the `PaperSnippet` object.
+
+Under the hood, the `decontext` method does the following:
+```python
+# 1. Creates the Pipeline object
+pipeline = Pipeline(
+    qgen=DefaultQGen(),
+    qa_retrieval=DefaultRetrieval(),
+    qa=DefaultQA(),
+    synth=DefaultSynth(),
+)
+
+# 2. Create the PaperSnippet object
+ps = PaperSnippet(snippet, context)
+
+# 3. Runs each component of the pipeline
+pipeline.qgen.run(ps)
+pipeline.qa_retrieval.run(ps)
+pipeline.qa.run(ps)
+pipeline.synth.run(ps)
+```
+
 
 ## Function Declaration
 ```python

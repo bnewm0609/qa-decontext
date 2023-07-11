@@ -1,0 +1,21 @@
+defaults:
+  - defaults
+  - _self_
+
+_id: "oa${esc_slash:${.name}}s${.seed}fs${.few_shot._id}"
+num_shots: 1
+name: "text-davinci-003"
+max_epochs: 1
+seed: 1  # Openai doesn't use this, but we do for marking our experiments and choosing few-shot examples
+interface: "api"
+# for_sure_run_train_command_and_spend_dollars: False
+few_shot:
+  instructions: 'The following text is from a scientific paper, but might include language that requires more context to understand. The language might be vague (like "their results") or might be too specific (like acronyms or jargon). Write questions that ask for clarifications. If the language is clear, write "No questions.".'
+  x_prefix: ""
+  # x_suffix: "\""
+  y_prefix: "Questions: "
+  _id: "ns${.num_shots}${hash:3,${.instructions}, ${.x_prefix}, ${.y_prefix}}"
+  num_shots: 0
+  selection_strategy: "first"
+  # _id: "ns${.ic_examples}${hash:3,${.instructions}, ${.x_prefix}, ${.y_prefix}}"
+  ic_examples: null #["1912.01214.1.1.1", "1912.01214.2.1.2", "1912.01214.3.1.1"] # null
