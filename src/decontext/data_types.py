@@ -1,7 +1,8 @@
-from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional, Dict
 
 from pydantic import BaseModel
+
+from decontext.experiments.utils import hash_strs
 
 
 # Representing Paper Snippets
@@ -80,58 +81,131 @@ class PaperContext(BaseModel):
         return out_str.strip()
 
 
-# Configs
-class BaseConfig(BaseModel):
-    """All configs have model names and templates"""
+class PaperSnippet(BaseModel):
+    idx: str = "0"
+    snippet: str
+    context: PaperContext
+    qae: List[QuestionAnswerEvidence]
+    decontextualized_snippet: Optional[str]
+    cost: float = 0
 
-    model_name: str
-    template: Union[Path, str]
+    def add_question(self, question: str, qid: Optional[str] = None):
+        if qid is None:
+            qid = hash_strs([question])
+        self.qae.append(
+            QuestionAnswerEvidence(
+                qid=qid,
+                question=question,
+            )
+        )
+
+    def add_evidence_paragraphs(
+        self,
+        qid: str,
+        additional_paragraphs: List[str],
+        sections: Optional[List[str]] = None,
+        paper_id: Optional[str] = None,
+    ):
+        if sections is None:
+            sections = [""] * len(additional_paragraphs)
+
+        for qae in self.qae:
+            if qae.qid == qid:
+                if qae.evidence is None:
+                    qae.evidence = []
+                for section, additional_paragraph in zip(
+                    additional_paragraphs, sections
+                ):
+                    qae.evidence.append(
+                        EvidenceParagraph(
+                            section=section,
+                            paragraph=additional_paragraph,
+                            paper_id=paper_id,
+                        )
+                    )
+
+    def add_answer(self, qid: str, answer: str):
+        for qae in self.qae:
+            if qae.qid == qid:
+                qae.answer = answer
+
+    def add_decontextualized_snippet(self, decontextualized_snippet):
+        self.decontextualized_snippet = decontextualized_snippet
+
+    def add_cost(self, cost):
+        self.cost += cost
 
 
-class QGenConfig(BaseConfig):
-    """Config for the question generation pipeline component."""
-
-    max_questions: int
-
-
-class QAConfig(BaseConfig):
-    """Config for the question answering pipeline component."""
-
-    retriever: Optional[str]
+# Modeling
+class ModelResponse(BaseModel):
+    cost: Optional[float]
 
 
-class SynthConfig(BaseConfig):
-    """Config for the question answering pipeline component."""
-
-    pass
-
-
-class Config(BaseModel):
-    qgen: QGenConfig
-    qa: QAConfig
-    synth: SynthConfig
-
-
-# Metadata
-
-
-class Metadata(BaseModel):
-    """A snippet from a Paper along with all of the context needed to perform decontextualization.
+class OpenAIChatMessage(BaseModel):
+    """Input the the OpenAI chat Endpoint
 
     Attributes:
-        idx: A unique identifier for the snippet.
-        snippet: The snippet that is being decontextualized.
-        context: The context that was fed into the pipeline.
-        questions: A list of questions with their answers and evidences that were created while the pipeline was
-            running.
-        decontextualized_snippet: The final decontextualized snippet which rewrites the snippet to synthesize
-            the answers to the questions.
+        role (str): "system" or "user".
+        content (str): the prompt to the model.
     """
 
-    idx: str
-    snippet: str
-    context: Union[str, List[str], PaperContext, List[PaperContext]]
-    # these should be filled in as the pipeline is run
-    questions: List[QuestionAnswerEvidence]  # qid: question
-    decontextualized_snippet: str
-    cost: float
+    role: str
+    content: str
+
+
+class OpenAILogProbs(BaseModel):
+    tokens: List[str]
+    token_logprobs: List[float]
+    top_logprobs: List[Dict[str, float]]
+    text_offset: List[int]
+
+
+class OpenAICompletionChoice(BaseModel):
+    index: int
+    text: str
+    logprobs: Optional[OpenAILogProbs]
+    finish_reason: str
+
+
+class OpenAIChatChoice(BaseModel):
+    index: int
+    message: OpenAIChatMessage
+    finish_reason: str
+
+
+class OpenAIUsage(BaseModel):
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+
+
+class OpenAIResponse(ModelResponse):
+    id: str
+    object: str
+    created: int
+    usage: OpenAIUsage
+
+    class Config:
+        arbitrary_types_allowed = True
+
+
+class OpenAICompletionResponse(OpenAIResponse):
+    """Output of the OpenAI Completion API"""
+
+    model: str
+    choices: List[OpenAICompletionChoice]
+    usage: OpenAIUsage
+
+
+class OpenAIChatResponse(OpenAIResponse):
+    """Output of the OpenAI Chat API"""
+
+    choices: List[OpenAIChatChoice]
+
+
+class AnthropicResponse(ModelResponse):
+    """Output of the Anthropic API"""
+
+    completion: str
+    stop_reason: str
+    model: str

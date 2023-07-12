@@ -90,40 +90,16 @@ Finally, the `decontext` function also supports using multiple papers as context
 decontext(snippet, [paper_1_context, paper_2_context])
 ```
 
-3. Customize decontextualization pipeline
-
-By default we use GPT4 to answer based on the full document, but you can customize the different part of the pipeline by including a config in the call to `decontext`. The pipeline consists of three parts: A question generator (`qgen`), a question-answering system (`qa`), and a synthesizer (`synth`) to rewrite the snippets to include the answers to the questions. Each component of the pipeline can be specified using a `decontext.Config` dataclass. The config can also be a path to a yaml file with the same structure. (The values are the defaults.)
-```python
-config = Config(
-    qgen = {
-        "model_name": "text-davinci-003",
-        "max_questions": 3,
-        "template": "templates/qgen.yaml",
-    },
-    qa = {
-        "retriever": None, # "dense" for contriever or "tfidf" for BM25
-        "model_name": "gpt4",
-        "template": "templates/qa.yaml",
-    },
-    synth = {
-        "model_name": "text-davinci-003",
-        "template": "templates/synth.yaml",
-    }
-)
-
-decontext(snippet, context, config=config)
-```
-
-4. Debugging
-For debugging purposes, it's useful to have access to the intermediate outputs of the pipeline. To show these, set the `return_metadata` argument to `True`. The returned `metadata` is an instance of `decontext.Metadata`:
+3. Debugging
+For debugging purposes, it's useful to have access to the intermediate outputs of the pipeline. To show these, set the `return_metadata` argument to `True`. The returned metadata is an instance of `decontext.PaperSnippet`, which contains thes outputs
 ```python
 new_snippet, metadata = decontext(snippet, paper_1, return_metadata=True)
 
->   Metadata({
+>   PaperSnippet({
         "idx": "<unique identifier for the snippet>" ,
         "snippet": "<original snippet>",
         "context": "<context used in decontextualization>",
-        "questions": [
+        "question": [
             {
                 "qid": "<question_1_id>",
                 "question": "<question_1>",
@@ -155,7 +131,6 @@ Under the hood, the `decontext` method does the following:
 # 1. Creates the Pipeline object
 pipeline = Pipeline(
     qgen=DefaultQGen(),
-    qa_retrieval=DefaultRetrieval(),
     qa=DefaultQA(),
     synth=DefaultSynth(),
 )
@@ -165,10 +140,43 @@ ps = PaperSnippet(snippet, context)
 
 # 3. Runs each component of the pipeline
 pipeline.qgen.run(ps)
-pipeline.qa_retrieval.run(ps)
 pipeline.qa.run(ps)
 pipeline.synth.run(ps)
 ```
+
+Let's say you define your own Question Generation pipeline using a template that's better suited for your data than the default.
+```python
+class CustomQGen(QGen):
+    def __init__(self):
+        self.template = """\
+Ask clarifying questions about the sinppet that comes from this:
+
+Title: {{title}}
+Abstract: {{abstract}}
+Snippet: {{snippet}}
+Questions:
+-"""
+
+    def run(paper_snippet: PaperSnippet):
+        prompt = self.template.fill(**paper_snippet.to_dict())
+        response = self.gpt3(prompt)
+        for question in response:
+            paper_snippet.add_question(qid=hashstrs(question), question=response[0])
+```
+
+Then, you can incorporate it into the pipeline and pass the pipeline to the `decontext` function:
+```python
+from decontext import Pipeline
+
+pipeline = Pipeline(
+    qgen=CustomQGen(),
+    qa=DefaultQA(),
+    synth=DefaultSynth(),
+)
+
+decontext(snippet, context, pipeline=pipeline)
+```
+
 
 
 ## Function Declaration
@@ -176,7 +184,7 @@ pipeline.synth.run(ps)
 def decontext(
     snippet: str,
     context: Union[str, list[str], decontext.PaperContext, list[decontext.PaperContext]],
-    config: Union[decontext.Config, str, Path] = "configs/default.yaml",
+    pipeline: Optional[Pipeline] = None,
     return_metadata: bool = False
 ) -> Union[str, Tuple[str, decontext.Metadata]]
 """Decontextualizes the snippet using the given context according to the given config.
@@ -186,8 +194,9 @@ Args:
     context: The context to incorporate in the decontextualization. This can be:
         * a string with the context.
         * a list of context strings (each item should be a paragraph).
-        * a PaperContext object or list of PaperContext objects
-    config: The configuration for the pipeline
+        * a PaperContext object or list of PaperContext objects.
+    pipeline: The pipeline to run. If None, use the default Pipeline.
+    return_metadata: Flag for returning the metadata object (see belwow).
 
 Returns:
     string with the decontextualized version of the snippet.

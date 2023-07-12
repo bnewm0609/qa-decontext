@@ -1,0 +1,18 @@
+template:
+  - role: system
+    content: |
+      You are an assistant to a scientist in the field of natural language processing.
+  - role: user
+    content: |
+      Using the given scientific paper, answer the  question about "text snippet" below.
+
+      Information from the paper:
+
+      Full Text:
+
+      {{full_text}}
+      
+      Text snippet: "{{snippet}}"
+
+      Given the above information, please answer the following question about the text snippet. Keep your answer concise and informative. It should be at most a sentence long. If you cannot find the answer, then write "No answer.":
+      Question: {{question}}

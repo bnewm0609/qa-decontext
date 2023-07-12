@@ -1,0 +1,23 @@
+template:
+  - role: system
+    content: |
+      You are an assistant to a scientist in the field of natural language processing.
+  - role: user
+    content: |
+      Using the given information from the scientific paper, answer the  question about "text snippet" below.
+
+      Information from the paper:
+      Title: "{{title}}"
+
+      Abstract: "{{abstract}}"
+      {% for uniq_para in unique_evidence %}
+      Paragraph with potentially helpful information:
+      "{{ uniq_para }}"
+      {% endfor %}
+      {% if section_with_snippet %}Section of the paper the snippet comes from: "{{section_with_snippet}}"{% endif %}
+      Paragraph with the snippet: "{{paragraph_with_snippet}}"
+
+      Text snippet: "{{snippet}}"
+
+      Given the above information, please answer the following question. Keep your answer concise and informative. It should be at most a sentence long. If you cannot find the answer, then write "No answer.":
+      Question: {{question}}

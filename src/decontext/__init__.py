@@ -1,7 +1,7 @@
 from decontext.data_types import (
-    Config,
+    # Config,
     EvidenceParagraph,
-    Metadata,
+    # Metadata,
     PaperContext,
     QuestionAnswerEvidence,
     Section,

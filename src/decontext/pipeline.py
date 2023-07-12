@@ -1,16 +1,23 @@
+import json
+import os
+import tempfile
+from collections import defaultdict
+from contextlib import ExitStack
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 from hydra import compose, initialize
 from omegaconf import OmegaConf
 from pydantic import BaseModel
+from shadow_scholar.app import pdod
 
-from decontext import (
-    EvidenceParagraph,
-    Metadata,
+from decontext.data_types import (
+    Section,
     PaperContext,
-    QuestionAnswerEvidence,
+    PaperSnippet,
 )
+from decontext.model import load_model
+from decontext.template import Template
 
 # eventually, we don't want to have to import *anything* from the experiment code because it has too much
 # unnecessary overhead
@@ -24,50 +31,6 @@ from decontext.experiments.pipeline import (
     synthesize,
 )
 from decontext.experiments.utils import hash_strs
-
-
-class PaperSnippet(BaseModel):
-    idx: str = "0"
-    snippet: str
-    context: PaperContext
-    qae: List[QuestionAnswerEvidence]
-    decontextualized_snippet: Optional[str]
-
-    def add_question(self, qid: str, question: str):
-        self.qae.append(
-            QuestionAnswerEvidence(
-                qid=qid,
-                question=question,
-            )
-        )
-
-    def add_additional_paragraphs(
-        self,
-        qid: str,
-        additional_paragraphs: List[str],
-        section: Optional[str] = None,
-        paper_id: Optional[str] = None,
-    ):
-        for qae in self.qae:
-            if qae.qid == qid:
-                if qae.evidence is None:
-                    qae.evidence = []
-                for additional_paragraph in additional_paragraphs:
-                    qae.evidence.append(
-                        EvidenceParagraph(
-                            section=section,
-                            paragraph=additional_paragraph,
-                            paper_id=paper_id,
-                        )
-                    )
-
-    def add_answer(self, qid: str, answer: str):
-        for qae in self.qae:
-            if qae.qid == qid:
-                qae.answer = answer
-
-    def add_decontextualized_snippet(self, decontextualized_snippet):
-        self.decontextualized_snippet = decontextualized_snippet
 
 
 class PipelineStep:
@@ -89,9 +52,6 @@ class QAStep(PipelineStep):
     """Has to handle the logic of what to do with context."""
 
     name = "qa"
-
-    def __init__(self):
-        pass
 
 
 class SynthesisStep(PipelineStep):
@@ -172,11 +132,11 @@ class DefaultHydraStep(PipelineStep):
         # {"section_name": "<section_name>", "paragraphs": ["<paragraph_1>", "<paragraph_2>", ...]}
         if snippet.context.full_text:
             exp_full_text = []
-            for section in snippet.context.full_text:
+            for ctx_section in snippet.context.full_text:
                 exp_full_text.append(
                     {
-                        "section_name": section.section_name,
-                        "paragraphs": section.paragraphs,
+                        "section_name": ctx_section.section_name,
+                        "paragraphs": ctx_section.paragraphs,
                     }
                 )
             exp_snippet.full_text = exp_full_text  # type: ignore
@@ -222,15 +182,211 @@ class DefaultQGenStep(DefaultHydraStep, QGenStep):
             snippet.add_question(qid=qid, question=question)
 
 
+class TemplatePipelineStep(PipelineStep):
+    def __init__(self, name: str, model_name: str, template: str):
+        self.model = load_model(model_name)
+        self.template = Template(template)
+        self.name = name
+
+    def run(self, snippet: PaperSnippet):
+        raise NotImplementedError
+
+
+class TemplateQGenStep(TemplatePipelineStep):
+    def __init__(self):
+        super().__init__(
+            "qgen", "text-davinci-003", "templates/qgen.yaml"
+        )  # TODO use keywords
+        self.retriever = "dense"
+
+    def run(self, snippet: PaperSnippet):
+        prompt = self.template.fill(snippet.dict())
+        response = self.model(prompt)
+        text = self.model.extract_text(response)
+        for line in text.strip().splitlines():
+            question = line.lstrip(" -*")
+            snippet.add_question(question=question)
+        snippet.add_cost(response.cost)
+
+
+class TemplateRetrievalQAStep(TemplatePipelineStep):
+    def __init__(self):
+        super().__init__("qa", "gpt-4", "templates/qa_retrieval.yaml")
+
+    def retrieve(self, paper_snippet: PaperSnippet):
+        # TODO: cache these
+        context = paper_snippet.context
+        # 1. create the doc
+
+        with ExitStack() as stack:
+            doc_file = stack.enter_context(
+                tempfile.NamedTemporaryFile(mode="w+", delete=False)
+            )
+            query_file = stack.enter_context(
+                tempfile.NamedTemporaryFile(mode="w+", delete=False)
+            )
+            paper_retrieval_output_file = stack.enter_context(
+                tempfile.NamedTemporaryFile(mode="w+", delete=False)
+            )
+
+            # with open(doc_path, "w") as f:
+            for section in [
+                Section(
+                    section_name=context.title, paragraphs=[context.abstract]
+                )
+            ] + (context.full_text if context.full_text is not None else []):
+                for para_i, paragraph in enumerate(section.paragraphs):
+                    doc_file.write(
+                        json.dumps(
+                            {
+                                "did": f"s{section.section_name}p{para_i}",
+                                "text": paragraph,
+                                "section": section.section_name,
+                            }
+                        )
+                        + "\n"
+                    )
+
+            # 2. create the query
+            for question in paper_snippet.qae:
+                # with open(query_path, "a") as f:
+                query_file.write(
+                    json.dumps(
+                        {"qid": question.qid, "text": question.question}
+                    )
+                    + "\n"
+                )
+
+            doc_file_name = doc_file.name
+            query_file_name = query_file.name
+            retrieval_output_file_name = paper_retrieval_output_file.name
+
+        # 3. run retrieval
+        try:
+            ranker_kwargs = {"model_name_or_path": "facebook/contriever"}
+            pdod.main.run_pdod(
+                "dense",
+                ranker_kwargs=ranker_kwargs,
+                docs_path=doc_file_name,
+                queries_path=query_file_name,
+                output_path=retrieval_output_file_name,
+            )
+
+            # Extract the docs
+            # breakpoint()
+            with open(retrieval_output_file_name) as retrieval_output_file:
+                docs = [
+                    json.loads(line.strip()) for line in retrieval_output_file
+                ]
+            docs_by_qid = defaultdict(list)
+            for doc in docs:
+                docs_by_qid[doc["qid"]].append(doc["text"])
+            for qid in docs_by_qid:
+                # breakpoint()
+                paper_snippet.add_evidence_paragraphs(
+                    qid, docs_by_qid[qid][:3]
+                )
+
+        finally:
+            os.remove(doc_file_name)
+            os.remove(query_file_name)
+            os.remove(retrieval_output_file_name)
+
+        return paper_retrieval_output_file
+
+    def run(self, snippet: PaperSnippet):
+        self.retrieve(snippet)
+
+        for question in snippet.qae:
+            unique_evidence = set(
+                [
+                    ev.paragraph
+                    for ev in (
+                        question.evidence
+                        if question.evidence is not None
+                        else []
+                    )
+                    if (
+                        ev.paragraph != snippet.context.abstract
+                        and ev.paragraph
+                        != snippet.context.paragraph_with_snippet
+                    )
+                ]
+            )
+
+            if snippet.context.paragraph_with_snippet is None:
+                section_with_snippet = ""
+                paragraph_with_snippet = ""
+            else:
+                para_w_snippet = snippet.context.paragraph_with_snippet
+                section_with_snippet = (
+                    ""
+                    if para_w_snippet.section is None
+                    else para_w_snippet.section
+                )
+                paragraph_with_snippet = (
+                    ""
+                    if para_w_snippet.paragraph is None
+                    else para_w_snippet.paragraph
+                )
+
+            prompt = self.template.fill(
+                {
+                    "snippet": snippet.snippet,
+                    "question": question.question,
+                    "title": snippet.context.title,
+                    "abstract": snippet.context.abstract,
+                    "section_with_snippet": section_with_snippet,
+                    "paragraph_with_snippet": paragraph_with_snippet,
+                    "unique_evidence": list(unique_evidence),
+                }
+            )
+
+            result = self.model(prompt)
+            answer = self.model.extract_text(result)
+            snippet.add_answer(qid=question.qid, answer=answer)
+            snippet.add_cost(result.cost)
+
+
+class TemplateFullTextQAStep(TemplatePipelineStep):
+    def __init__(self):
+        super().__init__("qa", "gpt-4", "templates/qa_fulltext.yaml")
+
+    def run(self, snippet: PaperSnippet):
+        for question in snippet.qae:
+            prompt = self.template.fill(
+                {
+                    "snippet": snippet.snippet,
+                    "question": question.question,
+                    "full_text": str(snippet.context),
+                }
+            )
+
+            response = self.model(prompt)
+            answer = self.model.extract_text(response)
+            snippet.add_answer(qid=question.qid, answer=answer)
+            snippet.add_cost(response.cost)
+
+
+class TemplateSynthStep(TemplatePipelineStep):
+    def __init__(self):
+        super().__init__("synth", "text-davinci-003", "templates/synth.yaml")
+
+    def run(self, snippet: PaperSnippet):
+        prompt = self.template.fill(
+            {
+                "questions": snippet.qae,
+                "sentence": snippet.snippet,
+            }
+        )
+
+        response = self.model(prompt)
+        synth = self.model.extract_text(response)
+        snippet.add_decontextualized_snippet(synth)
+        snippet.add_cost(response.cost)
+
+
 class DefaultQAStep(DefaultHydraStep, QAStep):
-    # def __init__(self):
-    #     super().__init__()
-    #     if self.args.model.qa.retriever is not None:
-    #         retriever =
-
-    # def save_doc_for_retrieval(self, snippet: PaperSnippet):
-    #     pass
-
     def run(self, snippet: PaperSnippet):
         exp_snippet = self.create_exp_snippet(snippet)
         if (
@@ -242,7 +398,7 @@ class DefaultQAStep(DefaultHydraStep, QAStep):
                 qid,
                 additional_paragraphs,
             ) in exp_snippet.additional_paragraphs.items():
-                snippet.add_additional_paragraphs(qid, additional_paragraphs)
+                snippet.add_evidence_paragraphs(qid, additional_paragraphs)
         # else:
         # No retrieval needed either because we're querying over the whole thing
         # or we're passed stuff in the context.
@@ -266,8 +422,9 @@ def decontext(
     snippet: str,
     context: Union[str, List[str], PaperContext, List[PaperContext]],
     # config: Union[Config, str, Path] = "configs/default.yaml",
+    pipeline: Optional[Pipeline] = None,
     return_metadata: bool = False,
-) -> Union[str, Tuple[str, Metadata]]:
+) -> Union[str, Tuple[str, PaperSnippet]]:
     """Decontextualizes the snippet using the given context according to the given config.
 
     Args:
@@ -284,21 +441,34 @@ def decontext(
         if `return_metadata = True`, additionally return the intermediate results for each step of the pipeline
         as described above.
     """
-    pipeline = Pipeline(
-        qgen=DefaultQGenStep(),
-        # qa_retrieval=None, # DefaultRetrievalStep(),
-        qa=DefaultQAStep(),
-        synth=DefaultSynthesisStep(),
-    )
+
+    if pipeline is None:
+        pipeline = Pipeline(
+            qgen=DefaultQGenStep(),
+            # qa_retrieval=None, # DefaultRetrievalStep(),
+            qa=DefaultQAStep(),
+            synth=DefaultSynthesisStep(),
+        )
 
     # 2. Create the PaperSnippet object
     ps = PaperSnippet(snippet=snippet, context=context, qae=[])
 
     # 3. Runs each component of the pipeline
+    print("QG > ")
     pipeline.qgen.run(ps)
     # if pipeline.qa_retrieval is not None:
     #     pipeline.qa_retrieval.run(ps)
+    print("QA > ")
     pipeline.qa.run(ps)
+    print("Synth > ")
     pipeline.synth.run(ps)
 
-    return ps
+    if ps.decontextualized_snippet is None:
+        decontext_snippet = ""
+    else:
+        decontext_snippet = ps.decontextualized_snippet
+
+    if return_metadata:
+        return decontext_snippet, ps
+    else:
+        return decontext_snippet

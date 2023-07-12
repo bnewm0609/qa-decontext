@@ -1,27 +1,35 @@
 from decontext import EvidenceParagraph, PaperContext, decontext
+from decontext.pipeline import (
+    Pipeline,
+    TemplateQGenStep,
+    TemplateFullTextQAStep,
+    TemplateSynthStep,
+    TemplateRetrievalQAStep,
+)
 
-# from decontext.pipeline import DefaultQGenStep, PaperSnippet
+from decontext.pipeline import DefaultQGenStep, PaperSnippet
 
-# def test_DefaultQGenStep():
-#     step = DefaultQGenStep()
 
-#     snippet = PaperSnippet(
-#         snippet="This is a test snippet.",
-#         context=PaperContext(
-#             title="This is a title.",
-#             abstract="This is an abstract.",
-#             paragraph_with_snippet=EvidenceParagraph(
-#                 section="Section Header",
-#                 paragraph="This is a test snippet. This is the next sentence.",
-#             ),
-#         ),
-#         qae=[],
-#     )
-#     step.run(snippet)
+def test_DefaultQGenStep():
+    step = DefaultQGenStep()
 
-#     assert snippet.qae
-#     for question in snippet.qae:
-#         print(question.qid, question.question)
+    snippet = PaperSnippet(
+        snippet="This is a test snippet.",
+        context=PaperContext(
+            title="This is a title.",
+            abstract="This is an abstract.",
+            paragraph_with_snippet=EvidenceParagraph(
+                section="Section Header",
+                paragraph="This is a test snippet. This is the next sentence.",
+            ),
+        ),
+        qae=[],
+    )
+    step.run(snippet)
+
+    assert snippet.qae
+    for question in snippet.qae:
+        print(question.qid, question.question)
 
 
 def test_decontext():
@@ -112,3 +120,78 @@ def test_decontext_retrieval():
     paper_snippet = decontext(snippet, context)
 
     print(paper_snippet.decontextualized_snippet)
+
+
+def test_decontext_template_full_text():
+    snippet = (
+        "Concretely, we apply the BOW+LING model trained on the full Reddit dataset to millions of new "
+        "unannotated posts, labeling these posts with a probability of dogmatism according to the"
+        " classifier (0=non-dogmatic, 1=dogmatic)."
+    )
+
+    with open("tests/fixtures/full_text.json") as f:
+        full_text_json_str = f.read()
+
+    context = PaperContext.parse_raw(
+        full_text_json_str
+    )  # parse_obj_as(PaperContext, full_text_dict)
+    # add the paragraph with the snippet bc that's important:
+    paragraph_with_snippet = None
+    for section in context.full_text:
+        for paragraph in section.paragraphs:
+            if snippet in paragraph:
+                paragraph_with_snippet = EvidenceParagraph(
+                    section=section.section_name, paragraph=paragraph
+                )
+                break
+        if paragraph_with_snippet is not None:
+            break
+    context.paragraph_with_snippet = paragraph_with_snippet
+
+    pipeline = Pipeline(
+        qgen=TemplateQGenStep(),
+        qa=TemplateFullTextQAStep(),
+        synth=TemplateSynthStep(),
+    )
+
+    paper_snippet = decontext(snippet, context, pipeline=pipeline)
+    print(paper_snippet.decontextualized_snippet)
+
+
+def test_decontext_template_retrieval():
+    snippet = (
+        "Concretely, we apply the BOW+LING model trained on the full Reddit dataset to millions of new "
+        "unannotated posts, labeling these posts with a probability of dogmatism according to the"
+        " classifier (0=non-dogmatic, 1=dogmatic)."
+    )
+
+    with open("tests/fixtures/full_text.json") as f:
+        full_text_json_str = f.read()
+
+    context = PaperContext.parse_raw(
+        full_text_json_str
+    )  # parse_obj_as(PaperContext, full_text_dict)
+    # add the paragraph with the snippet bc that's important:
+    paragraph_with_snippet = None
+    for section in context.full_text:
+        for paragraph in section.paragraphs:
+            if snippet in paragraph:
+                paragraph_with_snippet = EvidenceParagraph(
+                    section=section.section_name, paragraph=paragraph
+                )
+                break
+        if paragraph_with_snippet is not None:
+            break
+    context.paragraph_with_snippet = paragraph_with_snippet
+
+    pipeline = Pipeline(
+        qgen=TemplateQGenStep(),
+        qa=TemplateRetrievalQAStep(),
+        synth=TemplateSynthStep(),
+    )
+
+    decontext_snippet, metadata = decontext(
+        snippet, context, pipeline=pipeline, return_metadata=True
+    )
+    print(metadata.decontextualized_snippet)
+    print(metadata.cost)
