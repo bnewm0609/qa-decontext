@@ -82,6 +82,13 @@ class PaperContext(BaseModel):
 
 
 class PaperSnippet(BaseModel):
+    """Holds all information about a snippet as it is processed by the pipeline.
+
+    This includes the PaperContext, the qae (questions, answers, and evidence), the snippet itself, the final
+    decontextualized version of the snippet, and the cost of decontextualizing the snippet (not taking caching
+    into account)
+    """
+
     idx: str = "0"
     snippet: str
     context: PaperContext
