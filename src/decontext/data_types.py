@@ -46,20 +46,49 @@ class PaperContext(BaseModel):
     title: str
     abstract: str
     full_text: Optional[List[Section]]
-    paragraph_with_snippet: Optional[EvidenceParagraph]
+    paragraph_with_snippet: EvidenceParagraph
     additional_paragraphs: Optional[List[EvidenceParagraph]]
 
-    # class Config:
-    #     def from_json(json_str: str):
-    #         data = json.loads(str)
+    @classmethod
+    def from_full_text_dict(cls, full_text_dict: Dict, snippet: str):
+        """Parse the PaperContext from a full_text dict.
 
-    #         if "paragraph_with_snippet" not in data and "full_text" in data:
-    #             # parse out the paragraph with the snippet
-    #             pass
+        Assumes the following structure:
+        {
+            'title': <title>,
+            'abstract': <abstract>,
+            'full_text': [{
+                'section_name': <section_name>,
+                'paragraphs': [<paragraph_1>, <paragraph_2>]
+                }]
+        }
 
-    #         return data
+        Args:
+            full_text_dict (Dict): Assumes the follwoing form:
 
-    #     json_loads = from_json
+        """
+        section_list = [
+            Section(**section) for section in full_text_dict["full_text"]
+        ]
+
+        # add the paragraph with the snippet bc that's important:
+        paragraph_with_snippet = None
+        for section in section_list:
+            for paragraph in section.paragraphs:
+                if snippet in paragraph:
+                    paragraph_with_snippet = EvidenceParagraph(
+                        section=section.section_name, paragraph=paragraph
+                    )
+                    break
+            if paragraph_with_snippet is not None:
+                break
+
+        return cls(
+            title=full_text_dict["title"],
+            abstract=full_text_dict["abstract"],
+            paragraph_with_snippet=paragraph_with_snippet,
+            full_text=section_list,
+        )
 
     def __str__(self):
         """Format the Full Text
