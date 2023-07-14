@@ -1,9 +1,9 @@
-import yaml
 from pathlib import Path
 from typing import Union, List
 
 from jinja2 import StrictUndefined
 from jinja2 import Template as JTemplate
+import yaml
 
 from decontext.data_types import OpenAIChatMessage
 
