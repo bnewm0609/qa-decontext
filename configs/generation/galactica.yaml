@@ -1,8 +1,0 @@
-_id: "nb-${.num_beams}_mgl-${.max_gen_length}"
-num_beams: 5
-max_gen_length: 1024 # longer to include input
-metrics:
- - "em"
- - "rouge"
- - "bert_score"
- - "p1p2pct"
