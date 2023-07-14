@@ -22,7 +22,7 @@ class Pipeline(BaseModel):
 
 
 class RetrievalQAPipeline(Pipeline):
-    steps = [
+    steps: List[PipelineStep] = [
         TemplateQGenStep(),
         TemplateRetrievalQAStep(),
         TemplateSynthStep(),
@@ -30,7 +30,11 @@ class RetrievalQAPipeline(Pipeline):
 
 
 class FullTextQAPipeline(Pipeline):
-    steps = [TemplateQGenStep(), TemplateFullTextQAStep(), TemplateSynthStep()]
+    steps: List[PipelineStep] = [
+        TemplateQGenStep(),
+        TemplateFullTextQAStep(),
+        TemplateSynthStep(),
+    ]
 
 
 def decontext(
