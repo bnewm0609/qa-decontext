@@ -8,27 +8,35 @@ from decontext.data_types import (
     PaperSnippet,
 )
 from decontext.step.step import PipelineStep
-from decontext.step.qa import TemplateRetrievalQAStep
+from decontext.step.qa import TemplateRetrievalQAStep, TemplateFullTextQAStep
 from decontext.step.qgen import TemplateQGenStep
 from decontext.step.synth import TemplateSynthStep
 from decontext.logging import info
 
 
 class Pipeline(BaseModel):
-    # qgen: QGenStep
-    # qa: QAStep
-    # synth: SynthesisStep
     steps: List[PipelineStep]
 
     class Config:
         arbitrary_types_allowed = True
 
 
+class RetrievalQAPipeline(Pipeline):
+    steps = [
+        TemplateQGenStep(),
+        TemplateRetrievalQAStep(),
+        TemplateSynthStep(),
+    ]
+
+
+class FullTextQAPipeline(Pipeline):
+    steps = [TemplateQGenStep(), TemplateFullTextQAStep(), TemplateSynthStep()]
+
+
 def decontext(
     snippet: str,
-    context: PaperContext,  # Union[str, List[str], PaperContext, List[PaperContext]],
+    context: PaperContext,
     additional_contexts: Optional[List[PaperContext]] = None,
-    # config: Union[Config, str, Path] = "configs/default.yaml",
     pipeline: Optional[Pipeline] = None,
     return_metadata: bool = False,
 ) -> Union[str, Tuple[str, PaperSnippet]]:
@@ -51,13 +59,7 @@ def decontext(
 
     # 1. Create the Pipepline
     if pipeline is None:
-        pipeline = Pipeline(
-            steps=[
-                TemplateQGenStep(),
-                TemplateRetrievalQAStep(),
-                TemplateSynthStep(),
-            ]
-        )
+        pipeline = RetrievalQAPipeline()
 
     # 2. Create the PaperSnippet and PipelineData objects
     paper_snippet = PaperSnippet(

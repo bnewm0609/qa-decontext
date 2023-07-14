@@ -131,44 +131,54 @@ Each step of the pipeline takes a `decontext.PaperSnippet` instance. This is the
 * synthesis fills in `PaperSnippet.decontextualized_snippet` by calling `PaperSnippet.add_decontextualized_snippet()`
 The custom component must call the relevant function for it's part.
 
-Your custom component should inherit from the `decontext.PipelineStep` class and override the `run` method. The method takes only one argument - the `PaperSnippet` object. See the `decontex/steps/{qgen,qa,synth}.py` for examples.
+Your custom component should inherit from the `decontext.PipelineStep` class and override the `run` method. The method takes only one argument - the `PaperSnippet` object. See the `decontex/steps/{qgen,qa,synth}.py` for examples. this is fine
 
 Under the hood, the `decontext` method does the following:
 ```python
 # 1. Creates the Pipeline object
 pipeline = Pipeline(
-    qgen=DefaultQGen(),
-    qa=DefaultQA(),
-    synth=DefaultSynth(),
+    steps=[
+        TemplateQGenStep(),
+        TemplateQAStep(),
+        TemplateSynthStep(),
+    ]
 )
 
 # 2. Create the PaperSnippet object
-ps = PaperSnippet(snippet, context)
+ps = PaperSnippet(snippet=snippet, context=context, qae=[])
 
-# 3. Runs each component of the pipeline
-pipeline.qgen.run(ps)
-pipeline.qa.run(ps)
-pipeline.synth.run(ps)
+# 3. Runs each component of the pipeline in order
+for step in pipeline.steps:
+    step.run(ps)
 ```
 
 Let's say you define your own Question Generation pipeline using a template that's better suited for your data than the default.
 ```python
-class CustomQGen(QGen):
+from decontext.model import load_model
+from decontext.template import Template
+from decontext.step.step import QGenStep
+
+class CustomQGen(QGenStep):
     def __init__(self):
-        self.template = """\
+        self.gpt3 = load_model("text-davinci-003")
+        self.template = Template("""\
 Ask clarifying questions about the sinppet that comes from this:
 
 Title: {{title}}
 Abstract: {{abstract}}
 Snippet: {{snippet}}
 Questions:
--"""
+-""")
 
     def run(paper_snippet: PaperSnippet):
-        prompt = self.template.fill(**paper_snippet.to_dict())
+        prompt = self.template.fill({
+            "title": paper_snippet.context.title,
+            "abstract": paper_snippet.context.abstract,
+            "snippet": paper_snippet.snippet,
+        })
         response = self.gpt3(prompt)
         for question in response:
-            paper_snippet.add_question(qid=hashstrs(question), question=response[0])
+            paper_snippet.add_question(question=response[0])
 ```
 
 Then, you can incorporate it into the pipeline and pass the pipeline to the `decontext` function:
@@ -177,8 +187,8 @@ from decontext import Pipeline
 
 pipeline = Pipeline(steps=[
     CustomQGen(),
-    DefaultQA(),
-    DefaultSynth(),
+    TemplateQAStep(),
+    TemplateSynthStep(),
 ])
 
 decontext(snippet=snippet, context=context, pipeline=pipeline)
