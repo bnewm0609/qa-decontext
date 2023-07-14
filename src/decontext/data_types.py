@@ -2,7 +2,7 @@ from typing import List, Optional, Dict
 
 from pydantic import BaseModel, validator
 
-from decontext.experiments.utils import hash_strs
+from decontext.utils import hash_strs
 
 
 # Representing Paper Snippets
