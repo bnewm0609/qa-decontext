@@ -26,7 +26,8 @@ class Pipeline(BaseModel):
 
 def decontext(
     snippet: str,
-    context: Union[str, List[str], PaperContext, List[PaperContext]],
+    context: PaperContext,  # Union[str, List[str], PaperContext, List[PaperContext]],
+    additional_contexts: Optional[List[PaperContext]] = None,
     # config: Union[Config, str, Path] = "configs/default.yaml",
     pipeline: Optional[Pipeline] = None,
     return_metadata: bool = False,
@@ -35,11 +36,11 @@ def decontext(
 
     Args:
         snippet: The text snippet to decontextualize.
-        context: The context to incorporate in the decontextualization. This can be:
-            * a string with the context.
-            * a list of context strings (each item should be a paragraph).
-            * a PaperContext object or list of PaperContext objects
-        config: The configuration for the pipeline
+        context: The context to incorporate into the decontextualization. This context must include the snippet.
+        additional_contexts: Additional context to use in the decontextualization (eg papers that are cited in
+            the snippet).
+        pipeline: The pipeline to run on the snippet.
+        return_metadata: Flag for returning the PaperSnippet object with intermediate outputs. (See below).
 
     Returns:
         string with the decontextualized version of the snippet.
@@ -48,6 +49,7 @@ def decontext(
         as described above.
     """
 
+    # 1. Create the Pipepline
     if pipeline is None:
         pipeline = Pipeline(
             steps=[
@@ -57,20 +59,25 @@ def decontext(
             ]
         )
 
-    # 2. Create the PaperSnippet object
-    ps = PaperSnippet(snippet=snippet, context=context, qae=[])
+    # 2. Create the PaperSnippet and PipelineData objects
+    paper_snippet = PaperSnippet(
+        snippet=snippet,
+        context=context,
+        additional_contexts=additional_contexts,
+        qae=[],
+    )
 
     # 3. Runs each component of the pipeline
     for step in pipeline.steps:
         info(f"Running {step.name} > ")
-        step.run(ps)
+        step.run(paper_snippet)
 
-    if ps.decontextualized_snippet is None:
+    if paper_snippet.decontextualized_snippet is None:
         decontext_snippet = ""
     else:
-        decontext_snippet = ps.decontextualized_snippet
+        decontext_snippet = paper_snippet.decontextualized_snippet
 
     if return_metadata:
-        return decontext_snippet, ps
+        return decontext_snippet, paper_snippet
     else:
         return decontext_snippet

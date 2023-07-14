@@ -24,7 +24,11 @@ export OPENAI_API_KEY='yourkey'
 
 2. Decontextualize
 
-To decontextualize a snippet using some context, you can pass both the snippet and context to the decontextualization function. The decontextualization will be best if it includes certain parts of the paper: especially the title, abstract, and the paragraph surrounding the snippet. If these can't be found, a warning will be raised.
+To decontextualize a snippet using some context, you can pass both the snippet and context to the decontextualization function.
+Currently, the expected format for the context is __entire full-text papers__.
+These include the title, abstract, and the sections of the paper.
+The `PaperContext` class, which holds these full-texts is a Pydantic model, so its values can be parsed from `json` strings as shown below.
+<!-- The decontextualization will be best if it includes certain parts of the paper: especially the title, abstract, and the paragraph surrounding the snippet. If these can't be found, a warning will be raised.
 ```python
 from decontext import decontext
 
@@ -59,16 +63,18 @@ context = PaperContext(
 )
 ```
 
-In addition to specifying individual paragraphs, you can also use the entire paper full text as context:
+In addition to specifying individual paragraphs, you can also use the entire paper full text as context: -->
 ```python
 from decontext import PaperContext, Section
 context = PaperContext(
     title="Identifying Dogmatism in Social Media: Signals and Models",
     abstract="We explore linguistic and behavioral features of dogmatism in social media and construct statistical models that can identify dogmatic comments. Our model is based on a corpus of Reddit posts, collected across a diverse set of conversational topics and annotated via paid crowdsourcing. We operationalize key aspects of dogmatism described by existing psychology theories (such as over-confidence), finding they have predictive power. We also find evidence for new signals of dogmatism, such as the tendency of dogmatic posts to refrain from signaling cognitive processes. When we use our predictive model to analyze millions of other Reddit posts, we find evidence that suggests dogmatism is a deeper personality trait, present for dogmatic users across many different domains, and that users who engage on dogmatic comments tend to show increases in dogmatic posts themselves.",
-    full_text=[Section(name="Introduction", paragraphs=["<paragraph 1>", "<paragraph 2>", ...]), ...],
+    full_text=[Section(section_name="Introduction", paragraphs=["<paragraph 1>", "<paragraph 2>", ...]), ...],
 )
 
-decontext(snippet, context)
+snippet = "Concretely, we apply the BOW+LING model trained on the full Reddit dataset to millions of new unannotated posts, labeling these posts with a probability of dogmatism according to the classifier (0=non-dogmatic, 1=dogmatic)."
+
+decontext(snippet=snippet, context=context)
 ```
 
 Subsection names should be separated from their supersection name with ":::". For example, the subsection "Metrics" of the "Methods" section would have the `section_name: "Methods ::: Metrics"`.
@@ -85,13 +91,14 @@ PaperContext.parse_raw("""{
 }""")
 ```
 
-Finally, the `decontext` function also supports using multiple papers as context:
+Additionally, the `decontext` function also supports using multiple papers as context:
 ```python
-decontext(snippet, [paper_1_context, paper_2_context])
+decontext(snippet=snippet, context=paper_1_context, additional_context=[paper_2_context])
 ```
+The argument `context` should be the one that contains the snippet. The argument `additional_context` can contain other potentially useful material (e.g. papers that are cited in the snippet).
 
 3. Debugging
-For debugging purposes, it's useful to have access to the intermediate outputs of the pipeline. To show these, set the `return_metadata` argument to `True`. The returned metadata is an instance of `decontext.PaperSnippet`, which contains thes outputs
+For debugging purposes, it's useful to have access to the intermediate outputs of the pipeline. To show these, set the `return_metadata` argument to `True`. The returned metadata is an instance of `decontext.PaperSnippet`, which contains these outputs along with the cost of the run.
 ```python
 new_snippet, metadata = decontext(snippet, paper_1, return_metadata=True)
 
@@ -119,12 +126,12 @@ new_snippet, metadata = decontext(snippet, paper_1, return_metadata=True)
 ## Customizing Pipeline Components
 If you want to use your own question generation, question answering, or synthesis models as part of the pipeline, you can incorporate them easily.
 Each step of the pipeline takes a `decontext.PaperSnippet` instance. This is the data structure that pipeline operates over. Each step fills in a field of the `PaperSnippet`.
-* question generation fills in `PaperSnippet.question` by calling `PaperSnippet.add_question(quest)`
-* question answering optionally fills in `PaperSnippet.additional_paragraphs` through retrieval by calling `PaperSnippet.add_paragraphs()`, and fills in `PaperSnippet.answers` by calling `PaperSnippet.add_answer()`.
+* question generation fills in `PaperSnippet.qae.question` by calling `PaperSnippet.add_question(question)`
+* question answering optionally fills in `PaperSnippet.qae.Evidence` through retrieval by calling `PaperSnippet.add_additional_paragraphs()`, and fills in `PaperSnippet.qae.answers` by calling `PaperSnippet.add_answer()`. (`qae` stands for "Question, Answer, Evidence").
 * synthesis fills in `PaperSnippet.decontextualized_snippet` by calling `PaperSnippet.add_decontextualized_snippet()`
 The custom component must call the relevant function for it's part.
 
-Your custom component should inherit from the `decontext.PipelineStep` class and override the `run` method. The method takes only one argument - the `PaperSnippet` object.
+Your custom component should inherit from the `decontext.PipelineStep` class and override the `run` method. The method takes only one argument - the `PaperSnippet` object. See the `decontex/steps/{qgen,qa,synth}.py` for examples.
 
 Under the hood, the `decontext` method does the following:
 ```python
@@ -168,13 +175,13 @@ Then, you can incorporate it into the pipeline and pass the pipeline to the `dec
 ```python
 from decontext import Pipeline
 
-pipeline = Pipeline(
-    qgen=CustomQGen(),
-    qa=DefaultQA(),
-    synth=DefaultSynth(),
-)
+pipeline = Pipeline(steps=[
+    CustomQGen(),
+    DefaultQA(),
+    DefaultSynth(),
+])
 
-decontext(snippet, context, pipeline=pipeline)
+decontext(snippet=snippet, context=context, pipeline=pipeline)
 ```
 
 
@@ -183,25 +190,25 @@ decontext(snippet, context, pipeline=pipeline)
 ```python
 def decontext(
     snippet: str,
-    context: Union[str, list[str], decontext.PaperContext, list[decontext.PaperContext]],
+    context: PaperContext, # Union[str, List[str], PaperContext, List[PaperContext]],
+    additional_contexts: Optional[List[PaperContext]] = None,
+    # config: Union[Config, str, Path] = "configs/default.yaml",
     pipeline: Optional[Pipeline] = None,
-    return_metadata: bool = False
-) -> Union[str, Tuple[str, decontext.Metadata]]
-"""Decontextualizes the snippet using the given context according to the given config.
+    return_metadata: bool = False,
+) -> Union[str, Tuple[str, PaperSnippet]]:
+    """Decontextualizes the snippet using the given context according to the given config.
 
-Args:
-    snippet: The text snippet to decontextualize.
-    context: The context to incorporate in the decontextualization. This can be:
-        * a string with the context.
-        * a list of context strings (each item should be a paragraph).
-        * a PaperContext object or list of PaperContext objects.
-    pipeline: The pipeline to run. If None, use the default Pipeline.
-    return_metadata: Flag for returning the metadata object (see belwow).
+    Args:
+        snippet: The text snippet to decontextualize.
+        context: The context to incorporate into the decontextualization. This context must include the snippet.
+        additional_contexts: Additional context to use in the decontextualization (eg papers that are cited in the snippet).
+        pipeline: The pipeline to run on the snippet.
+        return_metadata: Flag for returning the PaperSnippet object with intermediate outputs. (See below).
 
-Returns:
-    string with the decontextualized version of the snippet.
+    Returns:
+        string with the decontextualized version of the snippet.
 
-    if `return_metadata = True`, additionally return the intermediate results for each step of the pipeline as described above.
-"""
-
+        if `return_metadata = True`, additionally return the intermediate results for each step of the pipeline
+        as described above.
+    """
 ```

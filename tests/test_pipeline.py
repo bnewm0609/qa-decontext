@@ -1,6 +1,4 @@
-import json
-
-from decontext.data_types import EvidenceParagraph, PaperContext
+from decontext.data_types import PaperContext
 from decontext.pipeline import Pipeline, decontext
 from decontext.step.qa import TemplateRetrievalQAStep, TemplateFullTextQAStep
 from decontext.step.qgen import TemplateQGenStep
@@ -87,35 +85,35 @@ from decontext.step.synth import TemplateSynthStep
 #     print(paper_snippet.decontextualized_snippet)
 
 
-def test_decontext_retrieval():
-    snippet = (
-        "Concretely, we apply the BOW+LING model trained on the full Reddit dataset to millions of new "
-        "unannotated posts, labeling these posts with a probability of dogmatism according to the"
-        " classifier (0=non-dogmatic, 1=dogmatic)."
-    )
+# def test_decontext_retrieval():
+#     snippet = (
+#         "Concretely, we apply the BOW+LING model trained on the full Reddit dataset to millions of new "
+#         "unannotated posts, labeling these posts with a probability of dogmatism according to the"
+#         " classifier (0=non-dogmatic, 1=dogmatic)."
+#     )
 
-    with open("tests/fixtures/full_text.json") as f:
-        full_text_json_str = f.read()
+#     with open("tests/fixtures/full_text.json") as f:
+#         full_text_json_str = f.read()
 
-    context = PaperContext.parse_raw(
-        full_text_json_str
-    )  # parse_obj_as(PaperContext, full_text_dict)
-    # add the paragraph with the snippet bc that's important:
-    paragraph_with_snippet = None
-    for section in context.full_text:
-        for paragraph in section.paragraphs:
-            if snippet in paragraph:
-                paragraph_with_snippet = EvidenceParagraph(
-                    section=section.section_name, paragraph=paragraph
-                )
-                break
-        if paragraph_with_snippet is not None:
-            break
-    context.paragraph_with_snippet = paragraph_with_snippet
+#     context = PaperContext.parse_raw(
+#         full_text_json_str
+#     )  # parse_obj_as(PaperContext, full_text_dict)
+#     # add the paragraph with the snippet bc that's important:
+#     paragraph_with_snippet = None
+#     for section in context.full_text:
+#         for paragraph in section.paragraphs:
+#             if snippet in paragraph:
+#                 paragraph_with_snippet = EvidenceParagraph(
+#                     section=section.section_name, paragraph=paragraph
+#                 )
+#                 break
+#         if paragraph_with_snippet is not None:
+#             break
+#     context.paragraph_with_snippet = paragraph_with_snippet
 
-    paper_snippet = decontext(snippet, context)
+#     paper_snippet = decontext(snippet, context)
 
-    print(paper_snippet.decontextualized_snippet)
+#     print(paper_snippet.decontextualized_snippet)
 
 
 def test_decontext_template_full_text():
@@ -128,30 +126,18 @@ def test_decontext_template_full_text():
     with open("tests/fixtures/full_text.json") as f:
         full_text_json_str = f.read()
 
-    context = PaperContext.parse_raw(
-        full_text_json_str
-    )  # parse_obj_as(PaperContext, full_text_dict)
-    # add the paragraph with the snippet bc that's important:
-    paragraph_with_snippet = None
-    for section in context.full_text:
-        for paragraph in section.paragraphs:
-            if snippet in paragraph:
-                paragraph_with_snippet = EvidenceParagraph(
-                    section=section.section_name, paragraph=paragraph
-                )
-                break
-        if paragraph_with_snippet is not None:
-            break
-    context.paragraph_with_snippet = paragraph_with_snippet
+    context = PaperContext.parse_raw(full_text_json_str)
 
     pipeline = Pipeline(
-        qgen=TemplateQGenStep(),
-        qa=TemplateFullTextQAStep(),
-        synth=TemplateSynthStep(),
+        steps=[
+            TemplateQGenStep(),
+            TemplateFullTextQAStep(),
+            TemplateSynthStep(),
+        ]
     )
 
-    paper_snippet = decontext(snippet, context, pipeline=pipeline)
-    print(paper_snippet.decontextualized_snippet)
+    decontextualized_snippet = decontext(snippet, context, pipeline=pipeline)
+    print(decontextualized_snippet)
 
 
 def test_decontext_template_retrieval():
@@ -162,11 +148,9 @@ def test_decontext_template_retrieval():
     )
 
     with open("tests/fixtures/full_text.json") as f:
-        full_text_json = json.load(f)
+        full_text_json_str = f.read()
 
-    context = PaperContext.from_full_text_dict(
-        full_text_dict=full_text_json, snippet=snippet
-    )
+    context = PaperContext.parse_raw(full_text_json_str)
 
     pipeline = Pipeline(
         steps=[
@@ -178,6 +162,42 @@ def test_decontext_template_retrieval():
 
     decontext_snippet, metadata = decontext(
         snippet, context, pipeline=pipeline, return_metadata=True
+    )
+    print(metadata.decontextualized_snippet)
+    print(metadata.cost)
+
+
+def test_decontext_template_retrieval_two_contexts():
+    snippet = (
+        "Concretely, we apply the BOW+LING model trained on the full Reddit dataset to millions of new "
+        "unannotated posts, labeling these posts with a probability of dogmatism according to the"
+        " classifier (0=non-dogmatic, 1=dogmatic)."
+    )
+
+    with open("tests/fixtures/full_text.json") as f:
+        full_text_json_str = f.read()
+
+    context_1 = PaperContext.parse_raw(full_text_json_str)
+
+    with open("tests/fixtures/full_text_2.json") as f:
+        full_text_2_json_str = f.read()
+
+    context_2 = PaperContext.parse_raw(full_text_2_json_str)
+
+    pipeline = Pipeline(
+        steps=[
+            TemplateQGenStep(),
+            TemplateRetrievalQAStep(),
+            TemplateSynthStep(),
+        ]
+    )
+
+    decontext_snippet, metadata = decontext(
+        snippet,
+        context_1,
+        additional_contexts=[context_2],
+        pipeline=pipeline,
+        return_metadata=True,
     )
     print(metadata.decontextualized_snippet)
     print(metadata.cost)

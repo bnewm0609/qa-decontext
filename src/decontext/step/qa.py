@@ -8,6 +8,7 @@ from shadow_scholar.app import pdod
 
 from decontext.data_types import PaperSnippet, Section
 from decontext.step.step import QAStep, TemplatePipelineStep
+from decontext.utils import none_check
 
 
 class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
@@ -20,8 +21,9 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
 
     def retrieve(self, paper_snippet: PaperSnippet):
         # TODO: cache these
-        context = paper_snippet.context
-        # 1. create the doc
+        additional_contexts = none_check(paper_snippet.additional_contexts, [])
+        contexts = [paper_snippet.context] + additional_contexts
+        # 1. create the doc(s)
 
         with ExitStack() as stack:
             doc_file = stack.enter_context(
@@ -34,23 +36,24 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
                 tempfile.NamedTemporaryFile(mode="w+", delete=False)
             )
 
-            # with open(doc_path, "w") as f:
-            for section in [
-                Section(
-                    section_name=context.title, paragraphs=[context.abstract]
-                )
-            ] + (context.full_text if context.full_text is not None else []):
-                for para_i, paragraph in enumerate(section.paragraphs):
-                    doc_file.write(
-                        json.dumps(
-                            {
-                                "did": f"s{section.section_name}p{para_i}",
-                                "text": paragraph,
-                                "section": section.section_name,
-                            }
-                        )
-                        + "\n"
+            for context in contexts:
+                for section in [
+                    Section(
+                        section_name=context.title,
+                        paragraphs=[context.abstract],
                     )
+                ] + (none_check(context.full_text, [])):
+                    for para_i, paragraph in enumerate(section.paragraphs):
+                        doc_file.write(
+                            json.dumps(
+                                {
+                                    "did": f"{context.id}.s{section.section_name}p{para_i}",
+                                    "text": paragraph,
+                                    "section": section.section_name,
+                                }
+                            )
+                            + "\n"
+                        )
 
             # 2. create the query
             for question in paper_snippet.qae:
@@ -78,7 +81,6 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
             )
 
             # Extract the docs
-            # breakpoint()
             with open(retrieval_output_file_name) as retrieval_output_file:
                 docs = [
                     json.loads(line.strip()) for line in retrieval_output_file
@@ -87,7 +89,6 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
             for doc in docs:
                 docs_by_qid[doc["qid"]].append(doc["text"])
             for qid in docs_by_qid:
-                # breakpoint()
                 paper_snippet.add_evidence_paragraphs(
                     qid, docs_by_qid[qid][:3]
                 )
@@ -106,34 +107,18 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
             unique_evidence = set(
                 [
                     ev.paragraph
-                    for ev in (
-                        question.evidence
-                        if question.evidence is not None
-                        else []
-                    )
+                    for ev in (none_check(question.evidence, []))
                     if (
                         ev.paragraph != snippet.context.abstract
-                        and ev.paragraph
-                        != snippet.context.paragraph_with_snippet
+                        and ev.paragraph != snippet.paragraph_with_snippet
                     )
                 ]
             )
 
-            if snippet.context.paragraph_with_snippet is None:
-                section_with_snippet = ""
-                paragraph_with_snippet = ""
-            else:
-                para_w_snippet = snippet.context.paragraph_with_snippet
-                section_with_snippet = (
-                    ""
-                    if para_w_snippet.section is None
-                    else para_w_snippet.section
-                )
-                paragraph_with_snippet = (
-                    ""
-                    if para_w_snippet.paragraph is None
-                    else para_w_snippet.paragraph
-                )
+            paragraph_with_snippet = snippet.paragraph_with_snippet.paragraph
+            section_with_snippet = none_check(
+                snippet.paragraph_with_snippet.section, ""
+            )
 
             prompt = self.template.fill(
                 {
@@ -154,6 +139,11 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
 
 
 class TemplateFullTextQAStep(QAStep, TemplatePipelineStep):
+    """Runs the QA component of the decontextualization Pipeline using the whole context paper.
+
+    All additional context papers are ignored.
+    """
+
     def __init__(self):
         super().__init__(
             model_name="gpt-4", template="templates/qa_fulltext.yaml"
