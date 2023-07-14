@@ -69,7 +69,7 @@ email = "bnewmancommercial@gmail.com"
 where = ["src"]
 
 [tool.setuptools.package-data]
-decontext = ["py.typed"]
+decontext = ["py.typed", "templates/*"]
 
 
 [build-system]

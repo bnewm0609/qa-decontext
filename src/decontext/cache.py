@@ -1,12 +1,16 @@
 import json
+import os
 from pathlib import Path
 
 from diskcache import Index
 from filelock import FileLock
 
 
-OPENAI_CACHE_DIR = f"{Path.home()}/nfs/.cache/openai/"
-OPENAI_DISKCACHE_DIR = f"{Path.home()}/nfs/.cache/openai_diskcache/"
+CACHE_DIR = os.environ.get(
+    "DECONTEXT_CACHE_DIR", f"{Path.home()}/.cache/decontext"
+)
+OPENAI_CACHE_DIR = f"{CACHE_DIR}/jsoncache/"
+OPENAI_DISKCACHE_DIR = f"{CACHE_DIR}/diskcache/"
 
 
 class DiskCache:
@@ -59,6 +63,8 @@ class DiskCache:
         Returns:
             The value stored at the key or the result of calling the function.
         """
+        # breakpoint()
+        # assert self.cache_dir == "~/nfs/.cache/decontext/diskcache"
         if key in self._cache:
             print("Found example in cache")
             return self._cache[key]

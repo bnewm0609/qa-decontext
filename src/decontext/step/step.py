@@ -1,3 +1,6 @@
+from pathlib import Path
+from typing import Union
+
 from decontext.data_types import PaperSnippet
 from decontext.model import load_model
 from decontext.template import Template
@@ -29,7 +32,7 @@ class SynthesisStep(PipelineStep):
 class TemplatePipelineStep(PipelineStep):
     """Base class for steps that use templates"""
 
-    def __init__(self, model_name: str, template: str):
+    def __init__(self, model_name: str, template: Union[str, Path]):
         """Initialize the Pipeline step by loading a model
 
         Args:

@@ -9,7 +9,7 @@ from decontext.data_types import OpenAIChatMessage
 
 
 class Template:
-    def __init__(self, template: Union[str, List]):
+    def __init__(self, template: Union[Path, str, List]):
         self.template = self.load_template(template)
 
         if isinstance(self.template, str):
@@ -18,7 +18,7 @@ class Template:
             self.template_type = "openai_chat"
 
     def load_template(
-        self, template: Union[str, List]
+        self, template: Union[Path, str, List]
     ) -> Union[List[OpenAIChatMessage], str]:
         """Load the template from the config.
 
@@ -38,40 +38,42 @@ class Template:
             cases with the template. The template is not filled at this point.
         """
 
+        loaded_template: Union[List[OpenAIChatMessage], str] = ""
         # there are a few choices for template:
-        if (
+        if isinstance(template, Path) or (
             isinstance(template, str)
             and len(template) < 256
             and Path(template).is_file()
         ):
+            template = str(template)
             # the template is a path to a file - read the template from the file
             with open(template) as f:
                 if template.endswith("yaml"):
                     template = yaml.safe_load(f)["template"]
                     if isinstance(template, list):  # we're using OpenAI chat
-                        template = [
+                        loaded_template = [
                             OpenAIChatMessage(**item) for item in template
                         ]
                 else:
-                    template = f.read()
+                    loaded_template = f.read()
         elif isinstance(template, str):
             # assume the template is for a non-chat model. It also could be a path that's misspelled.
             if template.endswith(".yaml") or template.endswith(".txt"):
                 raise FileNotFoundError(
                     f"Make sure path is correct. Unable to find this file: {template}"
                 )
-            template = template
+            loaded_template = template
         elif isinstance(
             template, list
         ):  # or isinstance(template, ListConfig):
             # assume that the passsed thing is the template dict itself
-            template = [OpenAIChatMessage(**item) for item in template]
+            loaded_template = [OpenAIChatMessage(**item) for item in template]
         else:
             raise ValueError(
                 "Template must be either a string, list or path to a valid file"
             )
 
-        return template
+        return loaded_template
 
     def fill(self, fields: dict) -> Union[List[OpenAIChatMessage], str]:
         result: Union[List[OpenAIChatMessage], str] = ""

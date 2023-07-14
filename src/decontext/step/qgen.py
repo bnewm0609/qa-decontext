@@ -1,12 +1,14 @@
+from importlib import resources
+
 from decontext.data_types import PaperSnippet
 from decontext.step.step import TemplatePipelineStep, QGenStep
 
 
 class TemplateQGenStep(QGenStep, TemplatePipelineStep):
     def __init__(self):
-        super().__init__(
-            model_name="text-davinci-003", template="templates/qgen.yaml"
-        )
+        with resources.path("decontext.templates", "qgen.yaml") as f:
+            template_path = f
+        super().__init__(model_name="text-davinci-003", template=template_path)
 
     def run(self, snippet: PaperSnippet):
         prompt = self.template.fill(snippet.dict())

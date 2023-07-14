@@ -1,12 +1,14 @@
+from importlib import resources
+
 from decontext.data_types import PaperSnippet
 from .step import TemplatePipelineStep, SynthesisStep
 
 
 class TemplateSynthStep(SynthesisStep, TemplatePipelineStep):
     def __init__(self):
-        super().__init__(
-            model_name="text-davinci-003", template="templates/synth.yaml"
-        )
+        with resources.path("decontext.templates", "synth.yaml") as f:
+            template_path = f
+        super().__init__(model_name="text-davinci-003", template=template_path)
 
     def run(self, snippet: PaperSnippet):
         prompt = self.template.fill(

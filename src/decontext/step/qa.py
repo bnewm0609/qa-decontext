@@ -3,6 +3,7 @@ import os
 import tempfile
 from collections import defaultdict
 from contextlib import ExitStack
+from importlib import resources
 
 from shadow_scholar.app import pdod
 
@@ -15,9 +16,9 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
     """Template step that does retrieval"""
 
     def __init__(self):
-        super().__init__(
-            model_name="gpt-4", template="templates/qa_retrieval.yaml"
-        )
+        with resources.path("decontext.templates", "qa_retrieval.yaml") as f:
+            template_path = f
+        super().__init__(model_name="gpt-4", template=template_path)
 
     def retrieve(self, paper_snippet: PaperSnippet):
         # TODO: cache these
@@ -145,9 +146,9 @@ class TemplateFullTextQAStep(QAStep, TemplatePipelineStep):
     """
 
     def __init__(self):
-        super().__init__(
-            model_name="gpt-4", template="templates/qa_fulltext.yaml"
-        )
+        with resources.path("decontext.templates", "qa_fulltext.yaml") as f:
+            template_path = f
+        super().__init__(model_name="gpt-4", template=template_path)
 
     def run(self, snippet: PaperSnippet):
         for question in snippet.qae:
