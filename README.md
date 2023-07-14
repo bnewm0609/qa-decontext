@@ -22,11 +22,14 @@ pip install -e .
 export OPENAI_API_KEY='yourkey'
 ```
 
+By default, all requests to APIs are cached at `$HOME/.cache/decontext`, but this can be changed by setting the environment variable `export DECONTEXT_CACHE_DIR=path/to/cache`.
+
 2. Decontextualize
 
 To decontextualize a snippet using some context, you can pass both the snippet and context to the decontextualization function.
 Currently, the expected format for the context is __entire full-text papers__.
 These include the title, abstract, and the sections of the paper.
+The title, abstract, and full text are all required fields.
 The `PaperContext` class, which holds these full-texts is a Pydantic model, so its values can be parsed from `json` strings as shown below.
 <!-- The decontextualization will be best if it includes certain parts of the paper: especially the title, abstract, and the paragraph surrounding the snippet. If these can't be found, a warning will be raised.
 ```python
@@ -98,6 +101,7 @@ decontext(snippet=snippet, context=paper_1_context, additional_context=[paper_2_
 The argument `context` should be the one that contains the snippet. The argument `additional_context` can contain other potentially useful material (e.g. papers that are cited in the snippet).
 
 3. Debugging
+
 For debugging purposes, it's useful to have access to the intermediate outputs of the pipeline. To show these, set the `return_metadata` argument to `True`. The returned metadata is an instance of `decontext.PaperSnippet`, which contains these outputs along with the cost of the run.
 ```python
 new_snippet, metadata = decontext(snippet, paper_1, return_metadata=True)
@@ -194,15 +198,14 @@ pipeline = Pipeline(steps=[
 decontext(snippet=snippet, context=context, pipeline=pipeline)
 ```
 
-
+The templates used to prompt OpenAI models for the default Pipeline are `yaml` files defined in `src/decontext/templates`.
 
 ## Function Declaration
 ```python
 def decontext(
     snippet: str,
-    context: PaperContext, # Union[str, List[str], PaperContext, List[PaperContext]],
+    context: PaperContext,
     additional_contexts: Optional[List[PaperContext]] = None,
-    # config: Union[Config, str, Path] = "configs/default.yaml",
     pipeline: Optional[Pipeline] = None,
     return_metadata: bool = False,
 ) -> Union[str, Tuple[str, PaperSnippet]]:
@@ -212,7 +215,7 @@ def decontext(
         snippet: The text snippet to decontextualize.
         context: The context to incorporate into the decontextualization. This context must include the snippet.
         additional_contexts: Additional context to use in the decontextualization (eg papers that are cited in the snippet).
-        pipeline: The pipeline to run on the snippet.
+        pipeline: The pipeline to run on the snippet. If not provided, a default retrieval-based pipeline will be run.
         return_metadata: Flag for returning the PaperSnippet object with intermediate outputs. (See below).
 
     Returns:
