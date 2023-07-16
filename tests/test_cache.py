@@ -39,7 +39,6 @@ def test_diskcache_dir_from_enviro():
 
         cache = DiskCache.load()
         cache.query("test-key", lambda: "test-val")
-        breakpoint()
         assert (Path(tempdirname_new) / "diskcache/cache.db").exists()
 
     if old_val_for_decontext_cache_dir is None:

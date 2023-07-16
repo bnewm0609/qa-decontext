@@ -103,7 +103,6 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
 
     def run(self, snippet: PaperSnippet):
         self.retrieve(snippet)
-
         for question in snippet.qae:
             unique_evidence = set(
                 [
@@ -132,7 +131,6 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
                     "unique_evidence": list(unique_evidence),
                 }
             )
-
             result = self.model(prompt)
             answer = self.model.extract_text(result)
             snippet.add_answer(qid=question.qid, answer=answer)
