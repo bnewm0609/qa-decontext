@@ -49,10 +49,13 @@ class Template:
             # the template is a path to a file - read the template from the file
             with open(template) as f:
                 if template.endswith("yaml"):
-                    template = yaml.safe_load(f)["template"]
-                    if isinstance(template, list):  # we're using OpenAI chat
+                    loaded_template = yaml.safe_load(f)["template"]
+                    if isinstance(
+                        loaded_template, list
+                    ):  # we're using OpenAI chat
                         loaded_template = [
-                            OpenAIChatMessage(**item) for item in template
+                            OpenAIChatMessage(**item)
+                            for item in loaded_template
                         ]
                 else:
                     loaded_template = f.read()

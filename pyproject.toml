@@ -1,12 +1,12 @@
 [project]
 name = "decontext"
-version = "0.1.1"
+version = "0.1.2"
 description = """\
 Pipeline for decontextualization of scientific snippets.
 """
 license = {text = "Apache-2.0"}
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dependencies = [
     "anthropic==0.2.10",
     "diskcache==5.6.1",
