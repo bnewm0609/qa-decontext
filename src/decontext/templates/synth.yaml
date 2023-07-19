@@ -1,0 +1,25 @@
+template: |
+  The following "text snippet" will be quoted in an article using the Chicago Manual of Style. The following questions were answered using information from the paper. Rewrite the "text snippet" into quote format by adding the answers in-between square brackets. Write as if you were an expert scientist in the field of natural language processing.
+
+  Information from the paper:
+  {% for question in questions %}
+  Question: {{ question['question'] }}
+  Answer: {{ question['answer'] }}
+  {% endfor %}
+  Text snippet: "{{sentence}}"
+
+  Instructions:
+
+  Using the given information, please rewrite the text snippet by adding additional information into square brackets.
+  For example: the snippet "Our approach performs well" becomes "[REF0's] approach [bidirectional language modeling] performs well".
+  For example: the snippet "Our task is MT" becomes "[REF0's] task is MT [machine translation]."
+
+  After adding clarifying information:
+  * Replace first-person pronouns with a placeholder. Replace "we" with "[REF0]" and "our" with "[REF0's]".
+  * Remove discourse markers (like "in conclusion", "in this section", "for instance", etc.)
+  * Citations are marked as BIBREF or (Author Name, Year). Keep these the same. Do not add any additional citations.
+  * Remove any references to Figures ("FIGREF") and Tables ("TABREF")
+  * Fix the grammar
+
+  Please rewrite the snippet according to the instructions and the given information.
+  Rewrite:

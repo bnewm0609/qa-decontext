@@ -1,0 +1,151 @@
+[project]
+name = "decontext"
+version = "0.1.2"
+description = """\
+Pipeline for decontextualization of scientific snippets.
+"""
+license = {text = "Apache-2.0"}
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "anthropic==0.2.10",
+    "diskcache==5.6.1",
+    "filelock==3.12.2",
+    "Jinja2==3.1.2",
+    "shadow-scholar==0.6.1",
+    "omegaconf==2.2.3",
+    "openai==0.27.7",
+    "pydantic==1.9.1",
+    "tiktoken==0.4.0",
+    "numpy==1.23.2",
+    "spacy==3.4.1",
+    "torch<2.0.0",
+    "scikit-learn==1.1.2",
+    "transformers==4.28.0",
+    "unidecode",
+    "sentence-transformers==2.2.2",
+    "typing_extensions==4.5.0",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+    "Typing :: Typed",
+]
+keywords = [
+]
+
+[[project.authors]]
+name = "Allen Institute for Artificial Intelligence"
+email = "contact@allenai.org"
+
+[[project.authors]]
+name = "Benjamin Newman"
+email = "bnewmancommercial@gmail.com"
+
+[[project.authors]]
+name = "Luca Soldaini"
+email = "luca@soldaini.net"
+
+[[project.authors]]
+name = "Kyle Lo"
+email = "kylel@allenai.org"
+
+[[project.maintainers]]
+name = "Benjamin Newman"
+email = "bnewmancommercial@gmail.com"
+
+[project.urls]
+"Homepage" = "https://github.com/bnewm0609/qa-decontextualization"
+"Repository" = "https://github.com/bnewm0609/qa-decontextualization"
+"Bug Tracker" = "https://github.com/bnewm0609/qa-decontextualization/issues"
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+decontext = ["py.typed", "templates/*"]
+
+
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = [
+    "setuptools >= 61.0.0",
+    "pip >= 21.0.0",
+    "wheel"
+]
+
+[project.optional-dependencies]
+dev = [
+    "black[jupyter]>=21.12b0",
+    "isort>=5.8.0",
+    "mypy>=0.971",
+    "pytest>=5.2",
+    "ipython>=8.4.0",
+    "autopep8>=1.7.0",
+    "flake8>=5.0",
+    "ipdb>=0.13.0",
+    "flake8-pyi>=22.8.1",
+    "Flake8-pyproject>=1.1.0",
+    "pytest==7.1.3",
+]
+
+[tool.black]
+line-length = 79
+include = '\.pyi?$'
+exclude = '''
+(
+      __pycache__
+    | \.git
+    | \.mypy_cache
+    | \.pytest_cache
+    | \.vscode
+    | \.venv
+    | \bdist\b
+    | \bdoc\b
+)
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 115
+multi_line_output = 3
+
+[tool.autopep8]
+max_line_length = 115
+in-place = true
+recursive = true
+aggressive = 3
+
+[tool.mypy]
+python_version = 3.8
+ignore_missing_imports = true
+no_site_packages = true
+allow_redefinition = false
+
+[tool.mypy-tests]
+strict_optional = false
+
+[tool.flake8]
+exclude = [
+    ".venv/",
+    "tmp/"
+]
+per-file-ignores = [
+    '*.py:E203',
+    '__init__.py:F401',
+    '*.pyi:E302,E305'
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/"]
+python_classes = ["Test*", "*Test"]
+log_format = "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+log_level = "DEBUG"
+markers = []
+filterwarnings = []

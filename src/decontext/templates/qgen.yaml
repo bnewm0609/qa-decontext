@@ -1,0 +1,18 @@
+template: |
+  The following text is from a scientific paper, but might include language that requires more context to understand. The language might be vague (like "their results") or might be too specific (like acronyms or jargon). Write questions that ask for clarifications. If the language is clear, write "No questions.".
+
+  Guidelines:
+  * Write the one, two, or three most important questions. Do not write unimportant questions.
+  * Do not ask about people or citations. Sometimes citations show up as "BIBREF"
+  * Do not ask questions whose answer is in the snippet.
+  * Do not ask about Tables ("TABREF"), Figures ("FIGREF"), Sections ("SECREF") or Formulas ("INLINEFORM").
+
+  Example:
+  Snippet: "In spirit, CaRE (Gupta et al., 2019) comes closest to our model; however, they do not address the problem of type compatibility in the link prediction task BIBREF3 (See Figure FIGREF2 for details)."
+  Questions:
+  - What is "CaRE"?
+  - What is the authors' approach?
+  - What is type compatibility?
+
+  Snippet: "{{snippet}}"
+  Questions:
