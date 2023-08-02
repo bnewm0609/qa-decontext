@@ -2,7 +2,6 @@ from typing import List, Optional, Tuple, Union
 
 from pydantic import BaseModel
 
-
 from decontext.data_types import (
     PaperContext,
     PaperSnippet,
@@ -20,21 +19,25 @@ class Pipeline(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
-
+# We don't want to instantiatate the pipelines here
 class RetrievalQAPipeline(Pipeline):
-    steps: List[PipelineStep] = [
-        TemplateQGenStep(),
-        TemplateRetrievalQAStep(),
-        TemplateSynthStep(),
-    ]
+
+    def __init__(self, **data):
+        data["steps"] = [
+            TemplateQGenStep(),
+            TemplateRetrievalQAStep(),
+            TemplateSynthStep(),
+        ]
 
 
 class FullTextQAPipeline(Pipeline):
-    steps: List[PipelineStep] = [
-        TemplateQGenStep(),
-        TemplateFullTextQAStep(),
-        TemplateSynthStep(),
-    ]
+
+    def __init__(self, **data):
+        data["steps"] = [
+            TemplateQGenStep(),
+            TemplateFullTextQAStep(),
+            TemplateSynthStep(),
+        ]
 
 
 def decontext(
