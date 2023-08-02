@@ -144,7 +144,7 @@ class PaperSnippet(BaseModel):
                 if qae.evidence is None:
                     qae.evidence = []
                 for section, additional_paragraph in zip(
-                    additional_paragraphs, sections
+                    sections, additional_paragraphs
                 ):
                     qae.evidence.append(
                         EvidenceParagraph(

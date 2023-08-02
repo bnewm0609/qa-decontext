@@ -14,6 +14,7 @@ from decontext.data_types import (
     AnthropicResponse,
     ModelResponse,
 )
+from decontext.logging import warn
 
 OPENAI_CHAT_MODEL_NAMES = {
     "gpt-3.5-turbo",
@@ -48,7 +49,11 @@ class GPT3Model:
         """
         self._name = model_name
         self.cache = DiskCache.load()
-        openai.api_key = os.environ["OPENAI_API_KEY"]
+        if "OPENAI_API_KEY" not in os.environ:
+            warn("OPENAI_API_KEY not found in environment variables."
+                "Set OPEN_API_KEY with your API key to use the OpenAI API.")
+        else:
+            openai.api_key = os.environ["OPENAI_API_KEY"]
 
         self.params = {
             "model": self.name,

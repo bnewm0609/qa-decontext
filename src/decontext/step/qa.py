@@ -9,7 +9,7 @@ from shadow_scholar.app import pdod
 
 from decontext.data_types import PaperSnippet, Section
 from decontext.step.step import QAStep, TemplatePipelineStep
-from decontext.utils import none_check
+from decontext.utils import none_check, unique
 
 
 class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
@@ -104,16 +104,16 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
     def run(self, snippet: PaperSnippet):
         self.retrieve(snippet)
         for question in snippet.qae:
-            unique_evidence = set(
-                [
-                    ev.paragraph
-                    for ev in (none_check(question.evidence, []))
-                    if (
-                        ev.paragraph != snippet.context.abstract
-                        and ev.paragraph != snippet.paragraph_with_snippet
-                    )
-                ]
-            )
+            evidence = [
+                ev.paragraph
+                for ev in (none_check(question.evidence, []))
+                if (
+                    ev.paragraph != snippet.context.abstract
+                    and ev.paragraph != snippet.paragraph_with_snippet
+                )
+            ]
+            # https://stackoverflow.com/questions/9792664/converting-a-list-to-a-set-changes-element-order
+            unique_evidence = unique(evidence)
 
             paragraph_with_snippet = snippet.paragraph_with_snippet.paragraph
             section_with_snippet = none_check(
@@ -128,7 +128,7 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
                     "abstract": snippet.context.abstract,
                     "section_with_snippet": section_with_snippet,
                     "paragraph_with_snippet": paragraph_with_snippet,
-                    "unique_evidence": list(unique_evidence),
+                    "unique_evidence": unique_evidence,
                 }
             )
             result = self.model(prompt)
