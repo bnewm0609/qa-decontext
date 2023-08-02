@@ -1,6 +1,6 @@
 from typing import Optional, get_type_hints
 
-from decontext.utils import none_check
+from decontext.utils import none_check, unique
 
 
 def test_none_check() -> None:
@@ -13,3 +13,9 @@ def test_none_check() -> None:
 
     x = None
     assert none_check(x, "") == ""
+
+def test_unique() -> None:
+    x = [1, 2, 3, 4, 5, 5, 5, 5, 5]
+    assert unique(x) == [1, 2, 3, 4, 5]
+    
+    assert unique([]) == []

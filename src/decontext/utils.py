@@ -1,6 +1,6 @@
 import base64
 import hashlib
-from typing import TypeVar, Optional
+from typing import TypeVar, Optional, List, Any
 
 
 def hash_strs(*strs, lim=10) -> str:
@@ -34,3 +34,13 @@ def none_check(value: Optional[T], default: T) -> T:
         Any: returns the value or a new instance of the type of the value if the value is None
     """
     return value if value is not None else default
+
+
+def unique(list_: List[Any]):
+    seen = set()
+    result = []
+    for elem in list_:
+        if elem not in seen:
+            seen.add(elem)
+            result.append(elem)
+    return result
