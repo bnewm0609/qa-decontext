@@ -128,7 +128,7 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
                     "abstract": snippet.context.abstract,
                     "section_with_snippet": section_with_snippet,
                     "paragraph_with_snippet": paragraph_with_snippet,
-                    "unique_evidence": list(unique_evidence),
+                    "unique_evidence": unique_evidence,
                 }
             )
             result = self.model(prompt)

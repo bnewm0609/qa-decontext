@@ -50,8 +50,8 @@ class GPT3Model:
         self._name = model_name
         self.cache = DiskCache.load()
         if "OPENAI_API_KEY" not in os.environ:
-            warn("OPENAI_API_KEY not found in environment variables.\
-                Set OPEN_API_KEY with your API key to use the OpenAI API.")
+            warn("OPENAI_API_KEY not found in environment variables."
+                "Set OPEN_API_KEY with your API key to use the OpenAI API.")
         else:
             openai.api_key = os.environ["OPENAI_API_KEY"]
 
