@@ -88,7 +88,7 @@ PaperContext.parse_raw("""{
     "title": "<title>",
     "abstract": "<abstract>",
     "full_text": [{
-        "name" : "<section_title>",
+        "section_name" : "<section_title>",
         "paragraphs": ["<paragraph>", ...]
     }, ...]
 }""")
