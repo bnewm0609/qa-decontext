@@ -19,7 +19,7 @@ dependencies = [
     "tiktoken==0.4.0",
     "numpy==1.23.2",
     "spacy==3.4.1",
-    "torch==1.13.1",
+    "torch==1.12.1",
     "scikit-learn==1.1.2",
     "transformers==4.28.0",
     "unidecode",
