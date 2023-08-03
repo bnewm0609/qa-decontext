@@ -8,6 +8,7 @@ on:
 
 env:
   USING_GITHUB_ACTIONS: "true"
+  DECONTEXT_CACHE_DIR: "tests/fixtures/cache"
 
 jobs:
   build:

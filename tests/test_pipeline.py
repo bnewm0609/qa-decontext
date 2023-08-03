@@ -1,3 +1,6 @@
+import os
+import unittest
+
 from decontext.data_types import PaperContext
 from decontext.pipeline import Pipeline, decontext
 from decontext.step.qa import TemplateRetrievalQAStep, TemplateFullTextQAStep
@@ -116,88 +119,98 @@ from decontext.step.synth import TemplateSynthStep
 #     print(paper_snippet.decontextualized_snippet)
 
 
-def test_decontext_template_full_text():
-    snippet = (
-        "Concretely, we apply the BOW+LING model trained on the full Reddit dataset to millions of new "
-        "unannotated posts, labeling these posts with a probability of dogmatism according to the"
-        " classifier (0=non-dogmatic, 1=dogmatic)."
-    )
+class TestPipeline(unittest.TestCase):
+    def setUp(self):
+        self.snippet = (
+            "Concretely, we apply the BOW+LING model trained on the full Reddit dataset to millions of new "
+            "unannotated posts, labeling these posts with a probability of dogmatism according to the"
+            " classifier (0=non-dogmatic, 1=dogmatic)."
+        )
 
-    with open("tests/fixtures/full_text.json") as f:
-        full_text_json_str = f.read()
-
-    context = PaperContext.parse_raw(full_text_json_str)
-
-    pipeline = Pipeline(
-        steps=[
-            TemplateQGenStep(),
-            TemplateFullTextQAStep(),
-            TemplateSynthStep(),
-        ]
-    )
-
-    decontextualized_snippet = decontext(snippet, context, pipeline=pipeline)
-    print(decontextualized_snippet)
+        self.using_github_actions = (
+            "USING_GITHUB_ACTIONS" in os.environ and os.environ["USING_GITHUB_ACTIONS"] == "true"
+        )
 
 
-def test_decontext_template_retrieval():
-    snippet = (
-        "Concretely, we apply the BOW+LING model trained on the full Reddit dataset to millions of new "
-        "unannotated posts, labeling these posts with a probability of dogmatism according to the"
-        " classifier (0=non-dogmatic, 1=dogmatic)."
-    )
+    def test_decontext_template_full_text(self):
+        if self.using_github_actions:
+            self.skipTest(
+                "Skipping test_decontext_template_full_text because it requires an openai key."
+            )
 
-    with open("tests/fixtures/full_text.json") as f:
-        full_text_json_str = f.read()
+        with open("tests/fixtures/full_text.json") as f:
+            full_text_json_str = f.read()
 
-    context = PaperContext.parse_raw(full_text_json_str)
+        context = PaperContext.parse_raw(full_text_json_str)
 
-    pipeline = Pipeline(
-        steps=[
-            TemplateQGenStep(),
-            TemplateRetrievalQAStep(),
-            TemplateSynthStep(),
-        ]
-    )
+        pipeline = Pipeline(
+            steps=[
+                TemplateQGenStep(),
+                TemplateFullTextQAStep(),
+                TemplateSynthStep(),
+            ]
+        )
 
-    decontext_snippet, metadata = decontext(
-        snippet, context, pipeline=pipeline, return_metadata=True
-    )
-    print(metadata.decontextualized_snippet)
-    print(metadata.cost)
+        decontextualized_snippet = decontext(self.snippet, context, pipeline=pipeline)
+        print(decontextualized_snippet)
 
 
-def test_decontext_template_retrieval_two_contexts():
-    snippet = (
-        "Concretely, we apply the BOW+LING model trained on the full Reddit dataset to millions of new "
-        "unannotated posts, labeling these posts with a probability of dogmatism according to the"
-        " classifier (0=non-dogmatic, 1=dogmatic)."
-    )
+    def test_decontext_template_retrieval(self):
+        if self.using_github_actions:
+            self.skipTest(
+                "Skipping test_decontext_template_retrieval because it requires an openai key."
+            )
 
-    with open("tests/fixtures/full_text.json") as f:
-        full_text_json_str = f.read()
+        with open("tests/fixtures/full_text.json") as f:
+            full_text_json_str = f.read()
 
-    context_1 = PaperContext.parse_raw(full_text_json_str)
+        context = PaperContext.parse_raw(full_text_json_str)
 
-    with open("tests/fixtures/full_text_2.json") as f:
-        full_text_2_json_str = f.read()
+        pipeline = Pipeline(
+            steps=[
+                TemplateQGenStep(),
+                TemplateRetrievalQAStep(),
+                TemplateSynthStep(),
+            ]
+        )
 
-    context_2 = PaperContext.parse_raw(full_text_2_json_str)
+        decontext_snippet, metadata = decontext(
+            self.snippet, context, pipeline=pipeline, return_metadata=True
+        )
+        print(metadata.decontextualized_snippet)
+        print(metadata.cost)
 
-    pipeline = Pipeline(
-        steps=[
-            TemplateQGenStep(),
-            TemplateRetrievalQAStep(),
-            TemplateSynthStep(),
-        ]
-    )
 
-    decontext_snippet, metadata = decontext(
-        snippet,
-        context_1,
-        additional_contexts=[context_2],
-        pipeline=pipeline,
-        return_metadata=True,
-    )
-    print(metadata.decontextualized_snippet)
-    print(metadata.cost)
+    def test_decontext_template_retrieval_two_contexts(self):
+        if self.using_github_actions:
+            self.skipTest(
+                "Skipping test_decontext_template_retrieval_two_contexts because it requires an openai key."
+            )
+
+        with open("tests/fixtures/full_text.json") as f:
+            full_text_json_str = f.read()
+
+        context_1 = PaperContext.parse_raw(full_text_json_str)
+
+        with open("tests/fixtures/full_text_2.json") as f:
+            full_text_2_json_str = f.read()
+
+        context_2 = PaperContext.parse_raw(full_text_2_json_str)
+
+        pipeline = Pipeline(
+            steps=[
+                TemplateQGenStep(),
+                TemplateRetrievalQAStep(),
+                TemplateSynthStep(),
+            ]
+        )
+
+        decontext_snippet, metadata = decontext(
+            self.snippet,
+            context_1,
+            additional_contexts=[context_2],
+            pipeline=pipeline,
+            return_metadata=True,
+        )
+        print(metadata.decontextualized_snippet)
+        print(metadata.cost)
