@@ -132,7 +132,8 @@ class GPT3Model:
             "claude-2": 11.02 / 1_000,
         }
 
-        price_per_1k_output_token_map: Dict[str, float] = price_per_1k_input_token_map | {  # type: ignore
+        price_per_1k_output_token_map: Dict[str, float] =  {  # type: ignore
+            **price_per_1k_input_token_map,
             "gpt-3.5-turbo-0301": 0.002,
             "gpt-3.5-turbo": 0.002,
             "gpt-3.5-turbo-0613": 0.002,
