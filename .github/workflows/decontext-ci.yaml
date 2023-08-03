@@ -1,0 +1,31 @@
+name: Decontext CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  USING_GITHUB_ACTIONS: "true"
+  DECONTEXT_CACHE_DIR: "tests/fixtures/cache"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.8"]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+
+      - name: Test with Python ${{ matrix.python-version }}
+        run: |
+          pip install -e ".[dev]"
+          pytest --cov-fail-under=42
