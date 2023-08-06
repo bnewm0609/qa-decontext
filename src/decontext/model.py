@@ -290,7 +290,7 @@ class GPT3ChatModel(GPT3Model):
         else:
             params["messages"] = [message.dict() for message in messages_prompt]
 
-        response = self.prompt_with_cache(params, invalidate=invalidate_cache)
+        response = self.prompt_with_cache(params, invalidate_cache=invalidate_cache)
         result = OpenAIChatResponse.parse_obj(response)
         result.cost = self.calculate_cost(
             prompt_tokens=result.usage.prompt_tokens,
