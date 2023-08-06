@@ -214,3 +214,7 @@ class JSONCache(Cache):
                 raise ValueError(
                     f"Cache.enforce_cache is True, but the following key was not found in the cache! Key: `${key}`"
                 )
+
+    def remove_all_unsafe_no_confirm(self):
+        self._cache.clear()
+        self.save()

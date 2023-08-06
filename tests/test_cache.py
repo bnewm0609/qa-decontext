@@ -29,6 +29,22 @@ class TestCache(unittest.TestCase):
                 assert (Path(tempdirname) / "jsoncache/cache.json").exists()
                 assert (Path(tempdirname) / "jsoncache/cache.json.lock").exists()
 
+    def test_jsoncache_clear(self):
+        with tempfile.TemporaryDirectory() as tempdirname_new:
+            with mock.patch.dict(os.environ, {"DECONTEXT_CACHE_DIR": tempdirname_new}, clear=True):
+                # import/reimport here so the new environment variable is used
+                import decontext.cache
+
+                importlib.reload(decontext.cache)
+                from decontext.cache import JSONCache
+
+                cache = JSONCache.load()
+                cache.query("test-key", lambda: "test-val")
+                
+                assert len(cache._cache) == 1
+                cache.remove_all_unsafe_no_confirm()
+                assert len(cache._cache) == 0
+
     def test_diskcache_dir_from_enviro(self):
         with tempfile.TemporaryDirectory() as tempdirname_new:
             with mock.patch.dict(os.environ, {"DECONTEXT_CACHE_DIR": tempdirname_new}, clear=True):
