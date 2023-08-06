@@ -17,10 +17,10 @@ def test_paper_context():
         },
         additional_paragraphs=[
             EvidenceParagraph(
-                section=evidence["section"], paragraph=evidence["paragraph"]
+                section=evidence["section"], paragraph=evidence["paragraph"], index=(ev_i + evs_i * len(snippet["evidence"])),
             )
-            for evidences in snippet["evidence"].values()
-            for evidence in evidences
+            for evs_i, evidences in enumerate(snippet["evidence"].values())
+            for ev_i, evidence in enumerate(evidences)
         ],
     )
 

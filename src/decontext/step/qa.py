@@ -38,23 +38,27 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
             )
 
             for context in contexts:
-                for section in [
-                    Section(
-                        section_name=context.title,
-                        paragraphs=[context.abstract],
-                    )
-                ] + (none_check(context.full_text, [])):
+
+                all_sections = [
+                    Section(section_name=context.title, paragraphs=[context.abstract])
+                ]
+                all_sections.extend(none_check(context.full_text, []))
+
+                # this is a global paragraph index. The index -1 will be the index of the abstract
+                paragraph_idx = -1
+                for section in all_sections:
                     for para_i, paragraph in enumerate(section.paragraphs):
                         doc_file.write(
                             json.dumps(
                                 {
-                                    "did": f"{context.id}.s{section.section_name}p{para_i}",
+                                    "did": f"{context.id}.s{section.section_name}p{para_i}___{paragraph_idx}",
                                     "text": paragraph,
                                     "section": section.section_name,
                                 }
                             )
                             + "\n"
                         )
+                        paragraph_idx += 1
 
             # 2. create the query
             for question in paper_snippet.qae:
@@ -86,12 +90,15 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
                 docs = [
                     json.loads(line.strip()) for line in retrieval_output_file
                 ]
+
             docs_by_qid = defaultdict(list)
             for doc in docs:
-                docs_by_qid[doc["qid"]].append(doc["text"])
+                paragraph_idx = int(doc["did"].split("___")[-1])
+                docs_by_qid[doc["qid"]].append((doc["text"], paragraph_idx))
             for qid in docs_by_qid:
+                docs, paragraph_idxs = zip(*docs_by_qid[qid][:3])
                 paper_snippet.add_evidence_paragraphs(
-                    qid, docs_by_qid[qid][:3]
+                    qid=qid, additional_paragraphs=docs, paragraph_indexes=paragraph_idxs
                 )
 
         finally:
