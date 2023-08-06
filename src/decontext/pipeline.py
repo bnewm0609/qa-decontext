@@ -46,6 +46,7 @@ def decontext(
     additional_contexts: Optional[List[PaperContext]] = None,
     pipeline: Optional[Pipeline] = None,
     return_metadata: bool = False,
+    invalidate_cache: bool = False,
 ) -> Union[str, Tuple[str, PaperSnippet]]:
     """Decontextualizes the snippet using the given context according to the given config.
 
@@ -79,6 +80,7 @@ def decontext(
     # 3. Runs each component of the pipeline
     for step in pipeline.steps:
         info(f"Running {step.name} > ")
+        step.invalidate_cache=invalidate_cache
         step.run(paper_snippet)
 
     if paper_snippet.decontextualized_snippet is None:

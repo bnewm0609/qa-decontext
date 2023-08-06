@@ -11,6 +11,9 @@ class PipelineStep:
 
     name: str
 
+    def __init__(self):
+        self.invalidate_cache = False
+
     def run(self, snippet: PaperSnippet):
         raise NotImplementedError()
 
@@ -39,6 +42,6 @@ class TemplatePipelineStep(PipelineStep):
             model_name (str): name of the api model to use (e.g. 'text-davinci-003')
             template (str): template or path to template
         """
-
+        super().__init__()
         self.model = load_model(model_name)
         self.template = Template(template)

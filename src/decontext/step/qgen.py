@@ -12,7 +12,7 @@ class TemplateQGenStep(QGenStep, TemplatePipelineStep):
 
     def run(self, snippet: PaperSnippet):
         prompt = self.template.fill(snippet.dict())
-        response = self.model(prompt)
+        response = self.model(prompt, invalidate_cache=self.invalidate_cache)
         text = self.model.extract_text(response)
         for line in text.strip().splitlines():
             question = line.lstrip(" -*")

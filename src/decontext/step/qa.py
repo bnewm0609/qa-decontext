@@ -138,7 +138,7 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
                     "unique_evidence": unique_evidence,
                 }
             )
-            result = self.model(prompt)
+            result = self.model(prompt, invalidate_cache=self.invalidate_cache)
             answer = self.model.extract_text(result)
             snippet.add_answer(qid=question.qid, answer=answer)
             snippet.add_cost(result.cost)
@@ -165,7 +165,7 @@ class TemplateFullTextQAStep(QAStep, TemplatePipelineStep):
                 }
             )
 
-            response = self.model(prompt)
+            response = self.model(prompt, invalidate_cache=self.invalidate_cache)
             answer = self.model.extract_text(response)
             snippet.add_answer(qid=question.qid, answer=answer)
             snippet.add_cost(response.cost)

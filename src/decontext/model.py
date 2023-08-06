@@ -215,7 +215,7 @@ class GPT3Model:
         else:
             return response.choices[0].text
 
-    def prompt_with_cache(self, params):
+    def prompt_with_cache(self, params, invalidate_cache: bool = False):
         """Send a request to the API with the given params if they haven't been used yet.
 
         This is done by creating a unique key based on the params dict and having the cache handle running
@@ -256,10 +256,10 @@ class GPT3Model:
                 breakpoint()
             return response.to_dict_recursive()
 
-        return self.cache.query(key, prompt)
+        return self.cache.query(key, prompt, invalidate_cache=invalidate_cache)
 
     def __call__(
-        self, text_prompt: Union[str, List[OpenAIChatMessage]]
+        self, text_prompt: Union[str, List[OpenAIChatMessage]], invalidate_cache=False
     ) -> ModelResponse:
         """Perform inference on the model with the given prompt.
 
@@ -268,7 +268,7 @@ class GPT3Model:
         params = {k: v for k, v in self.params.items()}
         params["prompt"] = text_prompt
 
-        response = self.prompt_with_cache(params)
+        response = self.prompt_with_cache(params, invalidate_cache=invalidate_cache)
 
         if self.is_anthropic_model:
             result = AnthropicResponse.parse_obj(response)
@@ -294,7 +294,7 @@ class GPT3ChatModel(GPT3Model):
         self.chat_model = True
 
     def __call__(
-        self, messages_prompt: Union[str, List[OpenAIChatMessage]]
+        self, messages_prompt: Union[str, List[OpenAIChatMessage]], invalidate_cache=False
     ) -> Union[OpenAIChatResponse, OpenAICompletionResponse]:  # type: ignore[override]
         params = {k: v for k, v in self.params.items()}
         params.pop("logprobs")
@@ -311,7 +311,7 @@ class GPT3ChatModel(GPT3Model):
                 message.dict() for message in messages_prompt
             ]
 
-        response = self.prompt_with_cache(params)
+        response = self.prompt_with_cache(params, invalidate=invalidate_cache)
         result = OpenAIChatResponse.parse_obj(response)
         result.cost = self.calculate_cost(
             prompt_tokens=result.usage.prompt_tokens,
@@ -342,7 +342,7 @@ class ClaudeModel(GPT3Model):
         self.is_chat_model = False
         self.is_anthropic_model = True
 
-    def prompt_with_cache(self, params):
+    def prompt_with_cache(self, params, invalidate_cache: bool = False):
         """Prompt with the anthropic library instead of the OpenAI one."""
         key = "-".join(
             [f"{param_k}_{param_v}" for param_k, param_v in params.items()]
@@ -361,7 +361,7 @@ class ClaudeModel(GPT3Model):
                 breakpoint()
             return response
 
-        return self.cache.query(key, prompt)
+        return self.cache.query(key, prompt, invalidate=invalidate_cache)
 
 
 def load_model(model_name: str, **params) -> GPT3Model:

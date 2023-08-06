@@ -18,7 +18,7 @@ class TemplateSynthStep(SynthesisStep, TemplatePipelineStep):
             }
         )
 
-        response = self.model(prompt)
+        response = self.model(prompt, invalidate_cache=self.invalidate_cache)
         synth = self.model.extract_text(response)
         snippet.add_decontextualized_snippet(synth)
         snippet.add_cost(response.cost)
