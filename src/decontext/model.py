@@ -50,8 +50,10 @@ class GPT3Model:
         self._name = model_name
         self.cache = DiskCache.load()
         if "OPENAI_API_KEY" not in os.environ:
-            warn("OPENAI_API_KEY not found in environment variables."
-                "Set OPEN_API_KEY with your API key to use the OpenAI API.")
+            warn(
+                "OPENAI_API_KEY not found in environment variables."
+                "Set OPEN_API_KEY with your API key to use the OpenAI API."
+            )
         else:
             openai.api_key = os.environ["OPENAI_API_KEY"]
 
@@ -132,7 +134,7 @@ class GPT3Model:
             "claude-2": 11.02 / 1_000,
         }
 
-        price_per_1k_output_token_map: Dict[str, float] =  {  # type: ignore
+        price_per_1k_output_token_map: Dict[str, float] = {  # type: ignore
             **price_per_1k_input_token_map,
             "gpt-3.5-turbo-0301": 0.002,
             "gpt-3.5-turbo": 0.002,
@@ -150,13 +152,9 @@ class GPT3Model:
         price_per_1k_output = price_per_1k_output_token_map[self.name]
         price_per_1k_input = price_per_1k_input_token_map[self.name]
 
-        using_token_counts = (
-            prompt_tokens is not None and completion_tokens is not None
-        )
+        using_token_counts = prompt_tokens is not None and completion_tokens is not None
         using_tokens = (
-            prompt is not None
-            and (completion is not None or max_gen_len is not None)
-            and not using_token_counts
+            prompt is not None and (completion is not None or max_gen_len is not None) and not using_token_counts
         )
 
         if not using_token_counts and not using_tokens:
@@ -167,18 +165,12 @@ class GPT3Model:
             )
 
         if prompt_tokens is None and prompt is not None:
-
             if self.is_anthropic_model:
                 prompt_tokens = anthropic.count_tokens(prompt)
             else:
                 tokenizer = tiktoken.encoding_for_model(self.name)
                 if self.is_chat_model and isinstance(prompt, list):
-                    prompt_tokens = sum(
-                        [
-                            len(tokenizer.encode(message.content))
-                            for message in prompt
-                        ]
-                    )
+                    prompt_tokens = sum([len(tokenizer.encode(message.content)) for message in prompt])
                 else:
                     prompt_tokens = len(tokenizer.encode(prompt))
 
@@ -201,10 +193,7 @@ class GPT3Model:
                 " `max_gen_len`"
             )
 
-        total_price = (
-            prompt_tokens * price_per_1k_input
-            + completion_tokens * price_per_1k_output
-        ) / 1_000
+        total_price = (prompt_tokens * price_per_1k_input + completion_tokens * price_per_1k_output) / 1_000
         return total_price
 
     def extract_text(self, response):
@@ -226,11 +215,7 @@ class GPT3Model:
         """
 
         key = "-".join(
-            [
-                f"{param_k}_{param_v}"
-                for param_k, param_v in params.items()
-                if param_k not in {"user", "prompt"}
-            ]
+            [f"{param_k}_{param_v}" for param_k, param_v in params.items() if param_k not in {"user", "prompt"}]
         )
         if self.is_chat_model:
             for message in params["messages"]:
@@ -250,17 +235,13 @@ class GPT3Model:
                 else:
                     response = openai.Completion.create(**params)
             except openai.error.InvalidRequestError:
-                print(
-                    "Stopping to investigate why there was an invalid request to the API..."
-                )
+                print("Stopping to investigate why there was an invalid request to the API...")
                 breakpoint()
             return response.to_dict_recursive()
 
-        return self.cache.query(key, prompt, invalidate_cache=invalidate_cache)
+        return self.cache.query(key, prompt, invalidate=invalidate_cache)
 
-    def __call__(
-        self, text_prompt: Union[str, List[OpenAIChatMessage]], invalidate_cache=False
-    ) -> ModelResponse:
+    def __call__(self, text_prompt: Union[str, List[OpenAIChatMessage]], invalidate_cache=False) -> ModelResponse:
         """Perform inference on the model with the given prompt.
 
         Overwrite the params with the given prompt. For Chat models, use a simple system message and put the
@@ -307,9 +288,7 @@ class GPT3ChatModel(GPT3Model):
                 {"role": "user", "content": messages_prompt},
             ]
         else:
-            params["messages"] = [
-                message.dict() for message in messages_prompt
-            ]
+            params["messages"] = [message.dict() for message in messages_prompt]
 
         response = self.prompt_with_cache(params, invalidate=invalidate_cache)
         result = OpenAIChatResponse.parse_obj(response)
@@ -344,9 +323,7 @@ class ClaudeModel(GPT3Model):
 
     def prompt_with_cache(self, params, invalidate_cache: bool = False):
         """Prompt with the anthropic library instead of the OpenAI one."""
-        key = "-".join(
-            [f"{param_k}_{param_v}" for param_k, param_v in params.items()]
-        )
+        key = "-".join([f"{param_k}_{param_v}" for param_k, param_v in params.items()])
 
         key += f"-prompt_{params['prompt']}"  # [:100]  # that should be enough, right?
 
@@ -355,9 +332,7 @@ class ClaudeModel(GPT3Model):
             try:
                 response = self.client.completion(**params)
             except anthropic.ApiException:
-                print(
-                    "Stopping so you can determine why there was an API exception."
-                )
+                print("Stopping so you can determine why there was an API exception.")
                 breakpoint()
             return response
 

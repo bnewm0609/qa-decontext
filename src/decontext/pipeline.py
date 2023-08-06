@@ -19,9 +19,9 @@ class Pipeline(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+
 # We don't want to instantiatate the pipelines here
 class RetrievalQAPipeline(Pipeline):
-
     def __init__(self, **data):
         data["steps"] = [
             TemplateQGenStep(),
@@ -31,7 +31,6 @@ class RetrievalQAPipeline(Pipeline):
 
 
 class FullTextQAPipeline(Pipeline):
-
     def __init__(self, **data):
         data["steps"] = [
             TemplateQGenStep(),
@@ -80,7 +79,7 @@ def decontext(
     # 3. Runs each component of the pipeline
     for step in pipeline.steps:
         info(f"Running {step.name} > ")
-        step.invalidate_cache=invalidate_cache
+        step.invalidate_cache = invalidate_cache
         step.run(paper_snippet)
 
     if paper_snippet.decontextualized_snippet is None:
