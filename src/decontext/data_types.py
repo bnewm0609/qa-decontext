@@ -9,6 +9,7 @@ from decontext.utils import hash_strs
 class EvidenceParagraph(BaseModel):
     section: Optional[str]
     paragraph: str
+    index: int  # index of the paragraph in the paper (NOT the section)
     paper_id: Optional[str]
 
 
@@ -101,14 +102,16 @@ class PaperSnippet(BaseModel):
             return v
 
         # extract the paragraph that the snippet is in from the paper
+        paragraph_idx = 0
         paragraph_with_snippet = None
         for section in values["context"].full_text:
             for paragraph in section.paragraphs:
                 if values["snippet"] in paragraph:
                     paragraph_with_snippet = EvidenceParagraph(
-                        section=section.section_name, paragraph=paragraph
+                        section=section.section_name, paragraph=paragraph, index=paragraph_idx
                     )
                     break
+                paragraph_idx += 1
             if paragraph_with_snippet is not None:
                 break
 
@@ -133,6 +136,7 @@ class PaperSnippet(BaseModel):
         self,
         qid: str,
         additional_paragraphs: List[str],
+        paragraph_indexes: List[int],
         sections: Optional[List[str]] = None,
         paper_id: Optional[str] = None,
     ):
@@ -143,13 +147,14 @@ class PaperSnippet(BaseModel):
             if qae.qid == qid:
                 if qae.evidence is None:
                     qae.evidence = []
-                for section, additional_paragraph in zip(
-                    sections, additional_paragraphs
+                for section, paragraph_idx, additional_paragraph in zip(
+                    sections, paragraph_indexes, additional_paragraphs
                 ):
                     qae.evidence.append(
                         EvidenceParagraph(
                             section=section,
                             paragraph=additional_paragraph,
+                            index=paragraph_idx,
                             paper_id=paper_id,
                         )
                     )

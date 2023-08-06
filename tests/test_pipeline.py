@@ -155,7 +155,7 @@ class TestPipeline(unittest.TestCase):
         print(decontextualized_snippet)
 
 
-    def test_decontext_template_retrieval(self):
+    def test_decontext_template_retrieval_one_context(self):
         if self.using_github_actions:
             self.skipTest(
                 "Skipping test_decontext_template_retrieval because it requires an openai key."
