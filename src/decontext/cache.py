@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+from typing import Any, Callable
 
 from diskcache import Index
 from filelock import FileLock
@@ -13,7 +14,31 @@ OPENAI_CACHE_DIR = f"{CACHE_DIR}/jsoncache/"
 OPENAI_DISKCACHE_DIR = f"{CACHE_DIR}/diskcache/"
 
 
-class DiskCache:
+class Cache:
+    def __init__(
+        self, cache: dict, cache_dir: str, enforce_cached: bool = False
+    ) -> None:
+        raise NotImplementedError()
+    
+    def query(self, key: str, fn: Callable[[], Any], invalidate: bool) -> Any:
+        """Query the cache for a key, and if it doesn't exist, run the function to get the value.
+
+        Args:
+            key (str): the key to query the cache for.
+            fn (Callable[[], Any]): the function to run to get the value if the key is not in the cache.
+
+        Returns:
+            The value of the key in the cache.
+        """
+        raise NotImplementedError()
+    
+    def remove(self, key: str):
+        raise NotImplementedError()
+    
+    def remove_all_unsafe_no_confirm(self):
+        raise NotImplementedError()
+
+class DiskCache(Cache):
     def __init__(
         self, cache: dict, cache_dir: str, enforce_cached: bool = False
     ) -> None:
@@ -50,7 +75,7 @@ class DiskCache:
         cache = Index(cache_dir)
         return cls(cache, cache_dir, enforce_cached)
 
-    def query(self, key, fn):
+    def query(self, key, fn, invalidate=False):
         """Query the cache and call the function upon a cache miss.
 
         If the key is not in the Cache, call the function and store the result of the function call in the cache
@@ -63,9 +88,7 @@ class DiskCache:
         Returns:
             The value stored at the key or the result of calling the function.
         """
-        # breakpoint()
-        # assert self.cache_dir == "~/nfs/.cache/decontext/diskcache"
-        if key in self._cache:
+        if key in self._cache and not invalidate:
             print("Found example in cache")
             return self._cache[key]
         else:
@@ -78,8 +101,11 @@ class DiskCache:
                     f"Cache.enforce_cache is True, but the following key was not found in the cache! Key: `${key}`"
                 )
 
+    def remove_all_unsafe_no_confirm(self):
+        self._cache.clear()
 
-class Cache:
+
+class JSONCache(Cache):
     """Cache for storing results of calls to models bethind APIs.
 
     This is a singleton object and should be initialized by calling `Cache.load`.
@@ -163,7 +189,7 @@ class Cache:
 
             sys.exit(1)
 
-    def query(self, key, fn):
+    def query(self, key, fn, invalidate=False):
         """Query the cache and call the function upon a cache miss.
 
         If the key is not in the Cache, call the function and store the result of the function call in the cache
@@ -176,7 +202,7 @@ class Cache:
         Returns:
             The value stored at the key or the result of calling the function.
         """
-        if key in self._cache:
+        if key in self._cache and not invalidate:
             print("Found example in cache")
             return self._cache[key]
         else:

@@ -3,8 +3,9 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-class TestSpanQAPredictor(unittest.TestCase):
+class TestCache(unittest.TestCase):
     def setUp(self):
         self.using_github_actions = (
             "USING_GITHUB_ACTIONS" in os.environ and os.environ["USING_GITHUB_ACTIONS"] == "true"
@@ -14,44 +15,68 @@ class TestSpanQAPredictor(unittest.TestCase):
                 "Skipping test_retrieval because it requires an openai key."
             )
 
-    def test_cache_dir_from_enviro(self):
-        old_val_for_decontext_cache_dir = os.environ.get("DECONTEXT_CACHE_DIR")
-
+    def test_jsoncache_dir_from_enviro(self):
         with tempfile.TemporaryDirectory() as tempdirname:
-            os.environ["DECONTEXT_CACHE_DIR"] = tempdirname
-            # import here so the new environment variable is used
-            import decontext.cache
+            with mock.patch.dict(os.environ, {"DECONTEXT_CACHE_DIR": tempdirname}, clear=True):
+                # import here so the new environment variable is used
+                import decontext.cache
 
-            importlib.reload(decontext.cache)
-            from decontext.cache import Cache
+                importlib.reload(decontext.cache)
+                from decontext.cache import JSONCache
 
-            cache = Cache.load()
-            cache.query("test-key", lambda: "test-val")
-            assert (Path(tempdirname) / "jsoncache/cache.json").exists()
-            assert (Path(tempdirname) / "jsoncache/cache.json.lock").exists()
-
-        if old_val_for_decontext_cache_dir is None:
-            del os.environ["DECONTEXT_CACHE_DIR"]
-        else:
-            os.environ["DECONTEXT_CACHE_DIR"] = old_val_for_decontext_cache_dir
-
+                cache = JSONCache.load()
+                cache.query("test-key", lambda: "test-val")
+                assert (Path(tempdirname) / "jsoncache/cache.json").exists()
+                assert (Path(tempdirname) / "jsoncache/cache.json.lock").exists()
 
     def test_diskcache_dir_from_enviro(self):
-        old_val_for_decontext_cache_dir = os.environ.get("DECONTEXT_CACHE_DIR")
-
         with tempfile.TemporaryDirectory() as tempdirname_new:
-            os.environ["DECONTEXT_CACHE_DIR"] = tempdirname_new
-            # import/reimport here so the new environment variable is used
-            import decontext.cache
+            with mock.patch.dict(os.environ, {"DECONTEXT_CACHE_DIR": tempdirname_new}, clear=True):
+                # import/reimport here so the new environment variable is used
+                import decontext.cache
 
-            importlib.reload(decontext.cache)
-            from decontext.cache import DiskCache
+                importlib.reload(decontext.cache)
+                from decontext.cache import DiskCache
 
-            cache = DiskCache.load()
-            cache.query("test-key", lambda: "test-val")
-            assert (Path(tempdirname_new) / "diskcache/cache.db").exists()
+                cache = DiskCache.load()
+                cache.query("test-key", lambda: "test-val")
+                assert (Path(tempdirname_new) / "diskcache/cache.db").exists()
 
-        if old_val_for_decontext_cache_dir is None:
-            del os.environ["DECONTEXT_CACHE_DIR"]
-        else:
-            os.environ["DECONTEXT_CACHE_DIR"] = old_val_for_decontext_cache_dir
+    def test_diskcache_clear(self):
+        with tempfile.TemporaryDirectory() as tempdirname_new:
+            with mock.patch.dict(os.environ, {"DECONTEXT_CACHE_DIR": tempdirname_new}, clear=True):
+                # import/reimport here so the new environment variable is used
+                import decontext.cache
+
+                importlib.reload(decontext.cache)
+                from decontext.cache import DiskCache
+
+                cache = DiskCache.load()
+                cache.query("test-key", lambda: "test-val")
+                assert (Path(tempdirname_new) / "diskcache/cache.db").exists()
+                
+                assert len(cache._cache) == 1
+                cache.remove_all_unsafe_no_confirm()
+                assert len(cache._cache) == 0
+
+    def test_diskcache_invalidate(self):
+        with tempfile.TemporaryDirectory() as tempdirname_new:
+            with mock.patch.dict(os.environ, {"DECONTEXT_CACHE_DIR": tempdirname_new}, clear=True):
+                # import/reimport here so the new environment variable is used
+                import decontext.cache
+
+                importlib.reload(decontext.cache)
+                from decontext.cache import DiskCache
+
+                cache = DiskCache.load()
+                test_val_1 = cache.query("test-key", lambda: "test-val")
+                assert (Path(tempdirname_new) / "diskcache/cache.db").exists()
+                
+                test_val_2 = cache.query("test-key", lambda: "test-val-2", invalidate=True)
+                
+                assert test_val_1 != test_val_2
+                assert cache.query("test-key", lambda: "test-val-3") == test_val_2
+
+    
+    
+    
