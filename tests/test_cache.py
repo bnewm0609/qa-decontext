@@ -92,7 +92,3 @@ class TestCache(unittest.TestCase):
                 
                 assert test_val_1 != test_val_2
                 assert cache.query("test-key", lambda: "test-val-3") == test_val_2
-
-    
-    
-    
