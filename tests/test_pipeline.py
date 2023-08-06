@@ -131,12 +131,9 @@ class TestPipeline(unittest.TestCase):
             "USING_GITHUB_ACTIONS" in os.environ and os.environ["USING_GITHUB_ACTIONS"] == "true"
         )
 
-
     def test_decontext_template_full_text(self):
         if self.using_github_actions:
-            self.skipTest(
-                "Skipping test_decontext_template_full_text because it requires an openai key."
-            )
+            self.skipTest("Skipping test_decontext_template_full_text because it requires an openai key.")
 
         with open("tests/fixtures/full_text.json") as f:
             full_text_json_str = f.read()
@@ -154,12 +151,9 @@ class TestPipeline(unittest.TestCase):
         decontextualized_snippet = decontext(self.snippet, context, pipeline=pipeline)
         print(decontextualized_snippet)
 
-
     def test_decontext_template_retrieval_one_context(self):
         if self.using_github_actions:
-            self.skipTest(
-                "Skipping test_decontext_template_retrieval because it requires an openai key."
-            )
+            self.skipTest("Skipping test_decontext_template_retrieval because it requires an openai key.")
 
         with open("tests/fixtures/full_text.json") as f:
             full_text_json_str = f.read()
@@ -174,12 +168,9 @@ class TestPipeline(unittest.TestCase):
             ]
         )
 
-        decontext_snippet, metadata = decontext(
-            self.snippet, context, pipeline=pipeline, return_metadata=True
-        )
+        decontext_snippet, metadata = decontext(self.snippet, context, pipeline=pipeline, return_metadata=True)
         print(metadata.decontextualized_snippet)
         print(metadata.cost)
-
 
     def test_decontext_template_retrieval_two_contexts(self):
         if self.using_github_actions:
@@ -214,3 +205,37 @@ class TestPipeline(unittest.TestCase):
         )
         print(metadata.decontextualized_snippet)
         print(metadata.cost)
+
+    # DON'T RUN THIS BECAUSE IT WILL OVERWRITE THE CACHE
+    # def test_decontext_template_retrieval_invalidate_cache(self):
+    #     if self.using_github_actions:
+    #         self.skipTest(
+    #             "Skipping test_decontext_template_retrieval because it requires an openai key."
+    #         )
+
+    #     with open("tests/fixtures/full_text.json") as f:
+    #         full_text_json_str = f.read()
+
+    #     context = PaperContext.parse_raw(full_text_json_str)
+
+    #     pipeline = Pipeline(
+    #         steps=[
+    #             TemplateQGenStep(),
+    #             TemplateRetrievalQAStep(),
+    #             TemplateSynthStep(),
+    #         ]
+    #     )
+
+    #     decontext_snippet, metadata = decontext(
+    #         self.snippet, context, pipeline=pipeline, return_metadata=True
+    #     )
+    #     print(metadata.decontextualized_snippet)
+    #     print(metadata.cost)
+
+    #     decontext_snippet_2, metadata_2 = decontext(
+    #         self.snippet, context, pipeline=pipeline, return_metadata=True,
+    #         invalidate_cache=True
+    #     )
+
+    #     # It's possible that both snippets are the same, but it's unlikely
+    #     assert decontext_snippet != decontext_snippet_2
