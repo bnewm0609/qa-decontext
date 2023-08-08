@@ -1,25 +1,25 @@
 import json
 import os
+from enum import Enum
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 from diskcache import Index
 from filelock import FileLock
 
 
-CACHE_DIR = os.environ.get(
-    "DECONTEXT_CACHE_DIR", f"{Path.home()}/.cache/decontext"
-)
+CACHE_DIR = os.environ.get("DECONTEXT_CACHE_DIR", f"{Path.home()}/.cache/decontext")
 OPENAI_CACHE_DIR = f"{CACHE_DIR}/jsoncache/"
 OPENAI_DISKCACHE_DIR = f"{CACHE_DIR}/diskcache/"
 
 
+CacheState = Enum("CacheState", ["NO_CACHE", "INVALIDATE", "NORMAL", "ENFORCE_CACHE"])
+
+
 class Cache:
-    def __init__(
-        self, cache: dict, cache_dir: str, enforce_cached: bool = False
-    ) -> None:
+    def __init__(self, cache: dict, cache_dir: str, enforce_cached: bool = False) -> None:
         raise NotImplementedError()
-    
+
     def query(self, key: str, fn: Callable[[], Any], invalidate: bool) -> Any:
         """Query the cache for a key, and if it doesn't exist, run the function to get the value.
 
@@ -31,17 +31,17 @@ class Cache:
             The value of the key in the cache.
         """
         raise NotImplementedError()
-    
+
     def remove(self, key: str):
         raise NotImplementedError()
-    
+
     def remove_all_unsafe_no_confirm(self):
         raise NotImplementedError()
 
+
 class DiskCache(Cache):
-    def __init__(
-        self, cache: dict, cache_dir: str, enforce_cached: bool = False
-    ) -> None:
+    # def __init__(self, cache: dict, cache_dir: str, enforce_cached: bool = False) -> None:
+    def __init__(self, cache: dict, cache_dir: str) -> None:
         """Initialize the Cache.
 
         Cache should be loaded in using Cache.load rather than the constructor.
@@ -54,12 +54,12 @@ class DiskCache(Cache):
 
         self._cache = cache
         self.cache_dir = cache_dir
-        self.enforce_cached = enforce_cached  # True
+        self.default_cache_state = CacheState.NORMAL
+        # self.enforce_cached = enforce_cached  # True
 
     @classmethod
-    def load(
-        cls, cache_dir=OPENAI_DISKCACHE_DIR, enforce_cached: bool = False
-    ) -> "DiskCache":
+    def load(cls, cache_dir=OPENAI_DISKCACHE_DIR) -> "DiskCache":
+        # def load(cls, cache_dir=OPENAI_DISKCACHE_DIR, enforce_cached: bool = False) -> "DiskCache":
         """Return an instance of a cache at the location pointed to by cache_dir.
 
         If `enforce_cache` is True, an error is thrown if the queried result is not in the cache.
@@ -73,9 +73,9 @@ class DiskCache(Cache):
         """
 
         cache = Index(cache_dir)
-        return cls(cache, cache_dir, enforce_cached)
+        return cls(cache, cache_dir)
 
-    def query(self, key, fn, invalidate=False):
+    def query(self, key: str, fn: Callable[[], Any], cache_state: Optional[CacheState] = None) -> Any:
         """Query the cache and call the function upon a cache miss.
 
         If the key is not in the Cache, call the function and store the result of the function call in the cache
@@ -88,11 +88,18 @@ class DiskCache(Cache):
         Returns:
             The value stored at the key or the result of calling the function.
         """
-        if key in self._cache and not invalidate:
+        if cache_state is None:
+            cache_state = self.default_cache_state
+
+        # If not using a cache, just call the function
+        if cache_state == CacheState.NO_CACHE:
+            return fn()
+        # Otherwise, return what's in the cache unless we're invalidating the key
+        elif key in self._cache and cache_state != CacheState.INVALIDATE:
             print("Found example in cache")
             return self._cache[key]
         else:
-            if not self.enforce_cached:
+            if not cache_state == CacheState.ENFORCE_CACHE:
                 self._cache[key] = fn()
                 # self.save()
                 return self._cache[key]
@@ -117,9 +124,7 @@ class JSONCache(Cache):
         lock: A FileLock to prevent concurrent edits to the cache file.
     """
 
-    def __init__(
-        self, cache: dict, cache_dir: str, enforce_cached: bool = False
-    ) -> None:
+    def __init__(self, cache: dict, cache_dir: str, enforce_cached: bool = False) -> None:
         """Initialize the Cache.
 
         Cache should be loaded in using Cache.load rather than the constructor.
@@ -137,9 +142,7 @@ class JSONCache(Cache):
         self.lock = FileLock(cache_filelock_path)
 
     @classmethod
-    def load(
-        cls, cache_dir=OPENAI_CACHE_DIR, enforce_cached: bool = False
-    ) -> "Cache":
+    def load(cls, cache_dir=OPENAI_CACHE_DIR, enforce_cached: bool = False) -> "Cache":
         """Return an instance of a cache at the location pointed to by cache_dir.
 
         If `enforce_cache` is True, an error is thrown if the queried result is not in the cache.
