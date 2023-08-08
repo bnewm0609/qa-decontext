@@ -1,14 +1,17 @@
 import json
 import os
-from enum import Enum
+from enum import IntEnum
 from pathlib import Path
 from typing import Any, Callable, Optional
 
 from diskcache import Index
 from filelock import FileLock
 
-
-CacheState = Enum("CacheState", ["NO_CACHE", "INVALIDATE", "NORMAL", "ENFORCE_CACHE"])
+# Use an IntEnum because it defines __eq__ that compares values rather than reference ids
+# This is important because if the cache_module is reloaded, the reference id will change,
+# cache_state is CacheState.XXXX will be false, even if cache_state.value == CacheState.XXXX
+# By using the comparison operator == and and an IntEnum, this issue is avoided.
+CacheState = IntEnum("CacheState", ["NO_CACHE", "INVALIDATE", "NORMAL", "ENFORCE_CACHE"])
 
 
 class Cache:
@@ -92,10 +95,6 @@ class DiskCache(Cache):
         Returns:
             The value stored at the key or the result of calling the function.
         """
-        if "blah blah blah" in key:
-            import pytest
-
-            pytest.set_trace()
 
         if cache_state is None:
             cache_state = self.default_cache_state
