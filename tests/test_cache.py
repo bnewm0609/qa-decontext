@@ -5,6 +5,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from decontext.cache import DiskCache, JSONCache, CacheState
+
 
 class TestCache(unittest.TestCase):
     def setUp(self):
@@ -50,12 +52,6 @@ class TestCache(unittest.TestCase):
     def test_jsoncache_dir_from_enviro(self):
         with tempfile.TemporaryDirectory() as tempdirname:
             with mock.patch.dict(os.environ, {"DECONTEXT_CACHE_DIR": tempdirname}, clear=True):
-                # import here so the new environment variable is used
-                import decontext.cache
-
-                importlib.reload(decontext.cache)
-                from decontext.cache import JSONCache
-
                 cache = JSONCache.load()
                 cache.query("test-key", lambda: "test-val")
                 assert (Path(tempdirname) / "jsoncache/cache.json").exists()
@@ -64,12 +60,6 @@ class TestCache(unittest.TestCase):
     def test_jsoncache_clear(self):
         with tempfile.TemporaryDirectory() as tempdirname_new:
             with mock.patch.dict(os.environ, {"DECONTEXT_CACHE_DIR": tempdirname_new}, clear=True):
-                # import/reimport here so the new environment variable is used
-                import decontext.cache
-
-                importlib.reload(decontext.cache)
-                from decontext.cache import JSONCache
-
                 cache = JSONCache.load()
                 cache.query("test-key", lambda: "test-val")
 
@@ -80,24 +70,12 @@ class TestCache(unittest.TestCase):
     def test_jsoncache_invalidate(self):
         with tempfile.TemporaryDirectory() as tempdirname_new:
             with mock.patch.dict(os.environ, {"DECONTEXT_CACHE_DIR": tempdirname_new}, clear=True):
-                # import/reimport here so the new environment variable is used
-                import decontext.cache
-
-                importlib.reload(decontext.cache)
-                from decontext.cache import JSONCache, CacheState
-
                 cache = JSONCache.load()
                 self.cache_invalidate_helper(cache, tempdirname_new, CacheState)
 
     def test_diskcache_dir_from_enviro(self):
         with tempfile.TemporaryDirectory() as tempdirname_new:
             with mock.patch.dict(os.environ, {"DECONTEXT_CACHE_DIR": tempdirname_new}, clear=True):
-                # import/reimport here so the new environment variable is used
-                import decontext.cache
-
-                importlib.reload(decontext.cache)
-                from decontext.cache import DiskCache
-
                 cache = DiskCache.load()
                 cache.query("test-key", lambda: "test-val")
                 assert (Path(tempdirname_new) / "diskcache/cache.db").exists()
@@ -105,12 +83,6 @@ class TestCache(unittest.TestCase):
     def test_diskcache_clear(self):
         with tempfile.TemporaryDirectory() as tempdirname_new:
             with mock.patch.dict(os.environ, {"DECONTEXT_CACHE_DIR": tempdirname_new}, clear=True):
-                # import/reimport here so the new environment variable is used
-                import decontext.cache
-
-                importlib.reload(decontext.cache)
-                from decontext.cache import DiskCache
-
                 cache = DiskCache.load()
                 cache.query("test-key", lambda: "test-val")
                 assert (Path(tempdirname_new) / "diskcache/cache.db").exists()
@@ -122,12 +94,6 @@ class TestCache(unittest.TestCase):
     def test_diskcache_invalidate(self):
         with tempfile.TemporaryDirectory() as tempdirname_new:
             with mock.patch.dict(os.environ, {"DECONTEXT_CACHE_DIR": tempdirname_new}, clear=True):
-                # import/reimport here so the new environment variable is used
-                import decontext.cache
-
-                importlib.reload(decontext.cache)
-                from decontext.cache import DiskCache, CacheState
-
                 cache = DiskCache.load()
 
                 self.cache_invalidate_helper(cache, tempdirname_new, CacheState)
