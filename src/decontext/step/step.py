@@ -1,9 +1,10 @@
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 
 from decontext.data_types import PaperSnippet
 from decontext.model import load_model
 from decontext.template import Template
+from decontext.cache import CacheState
 
 
 class PipelineStep:
@@ -11,10 +12,7 @@ class PipelineStep:
 
     name: str
 
-    def __init__(self):
-        self.invalidate_cache = False
-
-    def run(self, snippet: PaperSnippet):
+    def run(self, snippet: PaperSnippet, cache_state: Optional[CacheState] = None):
         raise NotImplementedError()
 
 

@@ -11,6 +11,7 @@ from decontext.step.qa import TemplateRetrievalQAStep, TemplateFullTextQAStep
 from decontext.step.qgen import TemplateQGenStep
 from decontext.step.synth import TemplateSynthStep
 from decontext.logging import info
+from decontext.cache import CacheState
 
 
 class Pipeline(BaseModel):
@@ -45,7 +46,7 @@ def decontext(
     additional_contexts: Optional[List[PaperContext]] = None,
     pipeline: Optional[Pipeline] = None,
     return_metadata: bool = False,
-    invalidate_cache: bool = False,
+    cache_states: Optional[Union[CacheState, List[Optional[CacheState]]]] = None,
 ) -> Union[str, Tuple[str, PaperSnippet]]:
     """Decontextualizes the snippet using the given context according to the given config.
 
@@ -77,10 +78,15 @@ def decontext(
     )
 
     # 3. Runs each component of the pipeline
-    for step in pipeline.steps:
+    # 3.1. Handle the cache states
+    if cache_states is None:
+        cache_states = [None] * len(pipeline.steps)
+    elif isinstance(cache_states, CacheState):
+        cache_states = [cache_states] * len(pipeline.steps)
+    for step, cache_state in zip(pipeline.steps, cache_states):
         info(f"Running {step.name} > ")
-        step.invalidate_cache = invalidate_cache
-        step.run(paper_snippet)
+        # step.invalidate_cache = invalidate_cache
+        step.run(paper_snippet, cache_state=cache_state)
 
     if paper_snippet.decontextualized_snippet is None:
         decontext_snippet = ""

@@ -1,6 +1,7 @@
 import os
 import unittest
 
+from decontext.cache import CacheState
 from decontext.data_types import PaperContext
 from decontext.pipeline import Pipeline, decontext
 from decontext.step.qa import TemplateRetrievalQAStep, TemplateFullTextQAStep
@@ -148,7 +149,14 @@ class TestPipeline(unittest.TestCase):
             ]
         )
 
+        gold_decontextualized_snippet = (
+            "[REF0] applied the BOW+LING model [which combines bag-of-words "
+            "features and linguistic features] to millions of new unannotated posts, labeling these posts "
+            "with a probability of dogmatism according to the classifier [with a score ranging from 0 "
+            "(non-dogmatic) to 1 (dogmatic)]."
+        )
         decontextualized_snippet = decontext(self.snippet, context, pipeline=pipeline)
+        assert decontextualized_snippet == gold_decontextualized_snippet
         print(decontextualized_snippet)
 
     def test_decontext_template_retrieval_one_context(self):
@@ -168,9 +176,23 @@ class TestPipeline(unittest.TestCase):
             ]
         )
 
+        gold_decontextualized_snippet = (
+            ' "[REF0] apply the BOW+LING model [which combines unigram bag-of-words features and linguistic '
+            "features from earlier analyses] trained on the full Reddit dataset to millions of new unannotated "
+            "posts, labeling these posts with a probability of dogmatism according to the classifier [ranging "
+            'from 0=non-dogmatic to 1=dogmatic]."'
+        )
+        gold_cost = 0.06691
+
         decontext_snippet, metadata = decontext(self.snippet, context, pipeline=pipeline, return_metadata=True)
         print(metadata.decontextualized_snippet)
         print(metadata.cost)
+
+        assert decontext_snippet == metadata.decontextualized_snippet == gold_decontextualized_snippet
+        assert metadata.cost == gold_cost
+
+        # check the retrieved evidences
+        assert [[ev.index for ev in qae.evidence] for qae in metadata.qae] == [[39, 42, 40], [42, 3, 8]]
 
     def test_decontext_template_retrieval_two_contexts(self):
         if self.using_github_actions:
@@ -203,39 +225,40 @@ class TestPipeline(unittest.TestCase):
             pipeline=pipeline,
             return_metadata=True,
         )
+
         print(metadata.decontextualized_snippet)
         print(metadata.cost)
 
-    # DON'T RUN THIS BECAUSE IT WILL OVERWRITE THE CACHE
-    # def test_decontext_template_retrieval_invalidate_cache(self):
-    #     if self.using_github_actions:
-    #         self.skipTest(
-    #             "Skipping test_decontext_template_retrieval because it requires an openai key."
-    #         )
+    def test_decontext_custom_cache_state(self):
+        if self.using_github_actions:
+            self.skipTest(
+                "Skipping test_decontext_template_retrieval_two_contexts because it requires an openai key."
+            )
 
-    #     with open("tests/fixtures/full_text.json") as f:
-    #         full_text_json_str = f.read()
+        with open("tests/fixtures/full_text.json") as f:
+            full_text_json_str = f.read()
 
-    #     context = PaperContext.parse_raw(full_text_json_str)
+        context_1 = PaperContext.parse_raw(full_text_json_str)
 
-    #     pipeline = Pipeline(
-    #         steps=[
-    #             TemplateQGenStep(),
-    #             TemplateRetrievalQAStep(),
-    #             TemplateSynthStep(),
-    #         ]
-    #     )
+        with open("tests/fixtures/full_text_2.json") as f:
+            full_text_2_json_str = f.read()
 
-    #     decontext_snippet, metadata = decontext(
-    #         self.snippet, context, pipeline=pipeline, return_metadata=True
-    #     )
-    #     print(metadata.decontextualized_snippet)
-    #     print(metadata.cost)
+        context_2 = PaperContext.parse_raw(full_text_2_json_str)
 
-    #     decontext_snippet_2, metadata_2 = decontext(
-    #         self.snippet, context, pipeline=pipeline, return_metadata=True,
-    #         invalidate_cache=True
-    #     )
+        pipeline = Pipeline(
+            steps=[
+                TemplateQGenStep(),
+                TemplateRetrievalQAStep(),
+                TemplateSynthStep(),
+            ]
+        )
 
-    #     # It's possible that both snippets are the same, but it's unlikely
-    #     assert decontext_snippet != decontext_snippet_2
+        with self.assertRaises(ValueError):
+            decontext_snippet, metadata = decontext(
+                "blah blah blah",  # this snippet is not in the cache
+                context_1,
+                additional_contexts=[context_2],
+                pipeline=pipeline,
+                return_metadata=True,
+                cache_states=CacheState.ENFORCE_CACHE,
+            )

@@ -4,9 +4,11 @@ import tempfile
 from collections import defaultdict
 from contextlib import ExitStack
 from importlib import resources
+from typing import Optional
 
 from shadow_scholar.app import pdod
 
+from decontext.cache import CacheState
 from decontext.data_types import PaperSnippet, Section
 from decontext.step.step import QAStep, TemplatePipelineStep
 from decontext.utils import none_check, unique
@@ -27,21 +29,12 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
         # 1. create the doc(s)
 
         with ExitStack() as stack:
-            doc_file = stack.enter_context(
-                tempfile.NamedTemporaryFile(mode="w+", delete=False)
-            )
-            query_file = stack.enter_context(
-                tempfile.NamedTemporaryFile(mode="w+", delete=False)
-            )
-            paper_retrieval_output_file = stack.enter_context(
-                tempfile.NamedTemporaryFile(mode="w+", delete=False)
-            )
+            doc_file = stack.enter_context(tempfile.NamedTemporaryFile(mode="w+", delete=False))
+            query_file = stack.enter_context(tempfile.NamedTemporaryFile(mode="w+", delete=False))
+            paper_retrieval_output_file = stack.enter_context(tempfile.NamedTemporaryFile(mode="w+", delete=False))
 
             for context in contexts:
-
-                all_sections = [
-                    Section(section_name=context.title, paragraphs=[context.abstract])
-                ]
+                all_sections = [Section(section_name=context.title, paragraphs=[context.abstract])]
                 all_sections.extend(none_check(context.full_text, []))
 
                 # this is a global paragraph index. The index -1 will be the index of the abstract
@@ -63,12 +56,7 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
             # 2. create the query
             for question in paper_snippet.qae:
                 # with open(query_path, "a") as f:
-                query_file.write(
-                    json.dumps(
-                        {"qid": question.qid, "text": question.question}
-                    )
-                    + "\n"
-                )
+                query_file.write(json.dumps({"qid": question.qid, "text": question.question}) + "\n")
 
             doc_file_name = doc_file.name
             query_file_name = query_file.name
@@ -87,9 +75,7 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
 
             # Extract the docs
             with open(retrieval_output_file_name) as retrieval_output_file:
-                docs = [
-                    json.loads(line.strip()) for line in retrieval_output_file
-                ]
+                docs = [json.loads(line.strip()) for line in retrieval_output_file]
 
             docs_by_qid = defaultdict(list)
             for doc in docs:
@@ -108,24 +94,19 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
 
         return paper_retrieval_output_file
 
-    def run(self, snippet: PaperSnippet):
+    def run(self, snippet: PaperSnippet, cache_state: Optional[CacheState] = None):
         self.retrieve(snippet)
         for question in snippet.qae:
             evidence = [
                 ev.paragraph
                 for ev in (none_check(question.evidence, []))
-                if (
-                    ev.paragraph != snippet.context.abstract
-                    and ev.paragraph != snippet.paragraph_with_snippet
-                )
+                if (ev.paragraph != snippet.context.abstract and ev.paragraph != snippet.paragraph_with_snippet)
             ]
             # https://stackoverflow.com/questions/9792664/converting-a-list-to-a-set-changes-element-order
             unique_evidence = unique(evidence)
 
             paragraph_with_snippet = snippet.paragraph_with_snippet.paragraph
-            section_with_snippet = none_check(
-                snippet.paragraph_with_snippet.section, ""
-            )
+            section_with_snippet = none_check(snippet.paragraph_with_snippet.section, "")
 
             prompt = self.template.fill(
                 {
@@ -138,7 +119,7 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
                     "unique_evidence": unique_evidence,
                 }
             )
-            result = self.model(prompt, invalidate_cache=self.invalidate_cache)
+            result = self.model(prompt, cache_state=cache_state)
             answer = self.model.extract_text(result)
             snippet.add_answer(qid=question.qid, answer=answer)
             snippet.add_cost(result.cost)
@@ -155,7 +136,7 @@ class TemplateFullTextQAStep(QAStep, TemplatePipelineStep):
             template_path = f
         super().__init__(model_name="gpt-4", template=template_path)
 
-    def run(self, snippet: PaperSnippet):
+    def run(self, snippet: PaperSnippet, cache_state: Optional[CacheState] = None):
         for question in snippet.qae:
             prompt = self.template.fill(
                 {
@@ -165,7 +146,7 @@ class TemplateFullTextQAStep(QAStep, TemplatePipelineStep):
                 }
             )
 
-            response = self.model(prompt, invalidate_cache=self.invalidate_cache)
+            response = self.model(prompt, cache_state=cache_state)
             answer = self.model.extract_text(response)
             snippet.add_answer(qid=question.qid, answer=answer)
             snippet.add_cost(response.cost)

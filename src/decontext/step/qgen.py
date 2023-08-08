@@ -1,5 +1,7 @@
 from importlib import resources
+from typing import Optional
 
+from decontext.cache import CacheState
 from decontext.data_types import PaperSnippet
 from decontext.step.step import TemplatePipelineStep, QGenStep
 
@@ -10,9 +12,9 @@ class TemplateQGenStep(QGenStep, TemplatePipelineStep):
             template_path = f
         super().__init__(model_name="text-davinci-003", template=template_path)
 
-    def run(self, snippet: PaperSnippet):
+    def run(self, snippet: PaperSnippet, cache_state: Optional[CacheState] = None):
         prompt = self.template.fill(snippet.dict())
-        response = self.model(prompt, invalidate_cache=self.invalidate_cache)
+        response = self.model(prompt, cache_state=cache_state)
         text = self.model.extract_text(response)
         for line in text.strip().splitlines():
             question = line.lstrip(" -*")
