@@ -6,13 +6,13 @@ from decontext.data_types import PaperSnippet
 from .step import TemplatePipelineStep, SynthesisStep
 
 
-class TemplateSynthStep(SynthesisStep, TemplatePipelineStep):
-    def __init__(self):
+class TemplateSynthStep(TemplatePipelineStep, SynthesisStep):
+    def __init__(self, cache_state: Optional[CacheState] = None):
         with resources.path("decontext.templates", "synth.yaml") as f:
             template_path = f
-        super().__init__(model_name="text-davinci-003", template=template_path)
+        super().__init__(model_name="text-davinci-003", template=template_path, cache_state=cache_state)
 
-    def run(self, snippet: PaperSnippet, cache_state: Optional[CacheState] = None):
+    def _run(self, snippet: PaperSnippet, cache_state: Optional[CacheState] = None):
         prompt = self.template.fill(
             {
                 "questions": snippet.qae,

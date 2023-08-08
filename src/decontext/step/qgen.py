@@ -6,13 +6,13 @@ from decontext.data_types import PaperSnippet
 from decontext.step.step import TemplatePipelineStep, QGenStep
 
 
-class TemplateQGenStep(QGenStep, TemplatePipelineStep):
-    def __init__(self):
+class TemplateQGenStep(TemplatePipelineStep, QGenStep):
+    def __init__(self, cache_state: Optional[CacheState] = None):
         with resources.path("decontext.templates", "qgen.yaml") as f:
             template_path = f
-        super().__init__(model_name="text-davinci-003", template=template_path)
+        super().__init__(model_name="text-davinci-003", template=template_path, cache_state=cache_state)
 
-    def run(self, snippet: PaperSnippet, cache_state: Optional[CacheState] = None):
+    def _run(self, snippet: PaperSnippet, cache_state: Optional[CacheState] = None):
         prompt = self.template.fill(snippet.dict())
         response = self.model(prompt, cache_state=cache_state)
         text = self.model.extract_text(response)

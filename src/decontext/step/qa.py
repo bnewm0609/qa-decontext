@@ -14,13 +14,13 @@ from decontext.step.step import QAStep, TemplatePipelineStep
 from decontext.utils import none_check, unique
 
 
-class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
+class TemplateRetrievalQAStep(TemplatePipelineStep, QAStep):
     """Template step that does retrieval"""
 
-    def __init__(self):
+    def __init__(self, cache_state: Optional[CacheState] = None):
         with resources.path("decontext.templates", "qa_retrieval.yaml") as f:
             template_path = f
-        super().__init__(model_name="gpt-4", template=template_path)
+        super().__init__(model_name="gpt-4", template=template_path, cache_state=cache_state)
 
     def retrieve(self, paper_snippet: PaperSnippet):
         # TODO: cache these
@@ -94,7 +94,7 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
 
         return paper_retrieval_output_file
 
-    def run(self, snippet: PaperSnippet, cache_state: Optional[CacheState] = None):
+    def _run(self, snippet: PaperSnippet, cache_state: Optional[CacheState] = None):
         self.retrieve(snippet)
         for question in snippet.qae:
             evidence = [
@@ -125,16 +125,16 @@ class TemplateRetrievalQAStep(QAStep, TemplatePipelineStep):
             snippet.add_cost(result.cost)
 
 
-class TemplateFullTextQAStep(QAStep, TemplatePipelineStep):
+class TemplateFullTextQAStep(TemplatePipelineStep, QAStep):
     """Runs the QA component of the decontextualization Pipeline using the whole context paper.
 
     All additional context papers are ignored.
     """
 
-    def __init__(self):
+    def __init__(self, cache_state: Optional[CacheState] = None):
         with resources.path("decontext.templates", "qa_fulltext.yaml") as f:
             template_path = f
-        super().__init__(model_name="gpt-4", template=template_path)
+        super().__init__(model_name="gpt-4", template=template_path, cache_state=cache_state)
 
     def run(self, snippet: PaperSnippet, cache_state: Optional[CacheState] = None):
         for question in snippet.qae:
