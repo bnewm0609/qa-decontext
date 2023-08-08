@@ -8,17 +8,19 @@ from diskcache import Index
 from filelock import FileLock
 
 
-CACHE_DIR = os.environ.get("DECONTEXT_CACHE_DIR", f"{Path.home()}/.cache/decontext")
-OPENAI_CACHE_DIR = f"{CACHE_DIR}/jsoncache/"
-OPENAI_DISKCACHE_DIR = f"{CACHE_DIR}/diskcache/"
-
-
 CacheState = Enum("CacheState", ["NO_CACHE", "INVALIDATE", "NORMAL", "ENFORCE_CACHE"])
 
 
 class Cache:
     def __init__(self, cache: dict, cache_dir: str, enforce_cached: bool = False) -> None:
+        # CACHE_DIR = os.environ.get("DECONTEXT_CACHE_DIR", f"{Path.home()}/.cache/decontext")
+        # OPENAI_CACHE_DIR = f"{CACHE_DIR}/jsoncache/"
+        # OPENAI_DISKCACHE_DIR = f"{CACHE_DIR}/diskcache/"
         raise NotImplementedError()
+
+    @classmethod
+    def get_default_cache_dir(cls) -> str:
+        return os.environ.get("DECONTEXT_CACHE_DIR", f"{Path.home()}/.cache/decontext")
 
     def query(self, key: str, fn: Callable[[], Any], invalidate: bool) -> Any:
         """Query the cache for a key, and if it doesn't exist, run the function to get the value.
@@ -58,7 +60,7 @@ class DiskCache(Cache):
         # self.enforce_cached = enforce_cached  # True
 
     @classmethod
-    def load(cls, cache_dir=OPENAI_DISKCACHE_DIR) -> "DiskCache":
+    def load(cls, cache_dir: Optional[str] = None) -> "DiskCache":
         # def load(cls, cache_dir=OPENAI_DISKCACHE_DIR, enforce_cached: bool = False) -> "DiskCache":
         """Return an instance of a cache at the location pointed to by cache_dir.
 
@@ -71,6 +73,8 @@ class DiskCache(Cache):
         Returns:
             The cache object.
         """
+        if cache_dir is None:
+            cache_dir = os.path.join(cls.get_default_cache_dir(), "diskcache")
 
         cache = Index(cache_dir)
         return cls(cache, cache_dir)
@@ -88,6 +92,11 @@ class DiskCache(Cache):
         Returns:
             The value stored at the key or the result of calling the function.
         """
+        if "blah blah blah" in key:
+            import pytest
+
+            pytest.set_trace()
+
         if cache_state is None:
             cache_state = self.default_cache_state
 
@@ -105,6 +114,9 @@ class DiskCache(Cache):
         else:
             self._cache[key] = fn()
             return self._cache[key]
+
+    def remove(self, key: str) -> Any:
+        del self._cache[key]
 
     def remove_all_unsafe_no_confirm(self):
         self._cache.clear()
@@ -139,7 +151,7 @@ class JSONCache(Cache):
         self.default_cache_state = CacheState.NORMAL
 
     @classmethod
-    def load(cls, cache_dir=OPENAI_CACHE_DIR) -> "Cache":
+    def load(cls, cache_dir: Optional[str] = None) -> "Cache":
         """Return an instance of a cache at the location pointed to by cache_dir.
 
         If `enforce_cache` is True, an error is thrown if the queried result is not in the cache.
@@ -150,6 +162,9 @@ class JSONCache(Cache):
         Returns:
             The cache object.
         """
+
+        if cache_dir is None:
+            cache_dir = os.path.join(cls.get_default_cache_dir(), "jsoncache")
 
         cache_path = Path(cache_dir) / "cache.json"
 
