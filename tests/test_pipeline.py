@@ -155,7 +155,9 @@ class TestPipeline(unittest.TestCase):
             "with a probability of dogmatism according to the classifier [with a score ranging from 0 "
             "(non-dogmatic) to 1 (dogmatic)]."
         )
-        decontextualized_snippet = decontext(self.snippet, context, pipeline=pipeline)
+        decontextualized_snippet = decontext(
+            self.snippet, context, pipeline=pipeline, cache_states=CacheState.ENFORCE_CACHE
+        )
         assert decontextualized_snippet == gold_decontextualized_snippet
         print(decontextualized_snippet)
 
@@ -184,7 +186,9 @@ class TestPipeline(unittest.TestCase):
         )
         gold_cost = 0.06691
 
-        decontext_snippet, metadata = decontext(self.snippet, context, pipeline=pipeline, return_metadata=True)
+        decontext_snippet, metadata = decontext(
+            self.snippet, context, pipeline=pipeline, return_metadata=True, cache_states=CacheState.ENFORCE_CACHE
+        )
         print(metadata.decontextualized_snippet)
         print(metadata.cost)
 

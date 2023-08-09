@@ -1,3 +1,4 @@
+import json
 import os
 import time
 from typing import List, Dict, Union, Optional
@@ -204,6 +205,15 @@ class GPT3Model:
         else:
             return response.choices[0].text
 
+    def get_key(self, params: dict) -> str:
+        """Creates a dict that is serialized to a json string"""
+        _key = {k: v for k, v in params.items() if k not in {"user", "prompt", "messages"}}
+        if self.is_chat_model:
+            _key["messages"] = [m for m in params["messages"]]
+        else:
+            _key["prompt"] = params["prompt"]
+        return json.dumps(_key, sort_keys=True)  # sort keys for consistent serialization
+
     def prompt_with_cache(self, params, cache_state: Optional[CacheState] = None):
         """Send a request to the API with the given params if they haven't been used yet.
 
@@ -214,14 +224,7 @@ class GPT3Model:
             params (dict): The parameters used to prompt the model with.
         """
 
-        key = "-".join(
-            [f"{param_k}_{param_v}" for param_k, param_v in params.items() if param_k not in {"user", "prompt"}]
-        )
-        if self.is_chat_model:
-            for message in params["messages"]:
-                key += f"-msg_r_{message['role']}_c_{message['content']}"
-        else:
-            key += f"-prompt_{params['prompt']}"  # [:100]  # that should be enough, right?
+        key = self.get_key(params)
 
         def prompt():
             # GPT4 has a lower rate-limit.
