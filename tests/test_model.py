@@ -33,7 +33,7 @@ def test_get_key():
     assert key == json.dumps({"top_p": 0.1, "prompt": "This is a test prompt"}, sort_keys=True)
 
     model = load_model("gpt-4")
-    messages = [OpenAIChatMessage(role="user", content="test content")]
+    messages = [OpenAIChatMessage(role="user", content="test content").dict()]
     params = {"top_p": 0.1, "messages": messages, "user": "ignored"}
     key = model.get_key(params)
     assert key == '{"messages": [{"content": "test content", "role": "user"}], "top_p": 0.1}'
