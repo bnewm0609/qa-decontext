@@ -57,6 +57,9 @@ def decontext(
             the snippet).
         pipeline: The pipeline to run on the snippet.
         return_metadata: Flag for returning the PaperSnippet object with intermediate outputs. (See below).
+        cache_states: The cache states to use for each step of the pipeline. If None, the default cache state
+            is used. If a single CacheState is given, it is used for all steps. If a list of CacheStates is given,
+            the ith CacheState is used for the ith step.
 
     Returns:
         string with the decontextualized version of the snippet.
