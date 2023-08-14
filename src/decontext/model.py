@@ -1,3 +1,4 @@
+import json
 import os
 import time
 from typing import List, Dict, Union, Optional
@@ -6,7 +7,7 @@ import anthropic
 import openai
 import tiktoken
 
-from decontext.cache import DiskCache
+from decontext.cache import DiskCache, CacheState
 from decontext.data_types import (
     OpenAIChatMessage,
     OpenAIChatResponse,
@@ -50,8 +51,10 @@ class GPT3Model:
         self._name = model_name
         self.cache = DiskCache.load()
         if "OPENAI_API_KEY" not in os.environ:
-            warn("OPENAI_API_KEY not found in environment variables."
-                "Set OPEN_API_KEY with your API key to use the OpenAI API.")
+            warn(
+                "OPENAI_API_KEY not found in environment variables."
+                "Set OPEN_API_KEY with your API key to use the OpenAI API."
+            )
         else:
             openai.api_key = os.environ["OPENAI_API_KEY"]
 
@@ -132,7 +135,7 @@ class GPT3Model:
             "claude-2": 11.02 / 1_000,
         }
 
-        price_per_1k_output_token_map: Dict[str, float] =  {  # type: ignore
+        price_per_1k_output_token_map: Dict[str, float] = {  # type: ignore
             **price_per_1k_input_token_map,
             "gpt-3.5-turbo-0301": 0.002,
             "gpt-3.5-turbo": 0.002,
@@ -150,13 +153,9 @@ class GPT3Model:
         price_per_1k_output = price_per_1k_output_token_map[self.name]
         price_per_1k_input = price_per_1k_input_token_map[self.name]
 
-        using_token_counts = (
-            prompt_tokens is not None and completion_tokens is not None
-        )
+        using_token_counts = prompt_tokens is not None and completion_tokens is not None
         using_tokens = (
-            prompt is not None
-            and (completion is not None or max_gen_len is not None)
-            and not using_token_counts
+            prompt is not None and (completion is not None or max_gen_len is not None) and not using_token_counts
         )
 
         if not using_token_counts and not using_tokens:
@@ -167,18 +166,12 @@ class GPT3Model:
             )
 
         if prompt_tokens is None and prompt is not None:
-
             if self.is_anthropic_model:
                 prompt_tokens = anthropic.count_tokens(prompt)
             else:
                 tokenizer = tiktoken.encoding_for_model(self.name)
                 if self.is_chat_model and isinstance(prompt, list):
-                    prompt_tokens = sum(
-                        [
-                            len(tokenizer.encode(message.content))
-                            for message in prompt
-                        ]
-                    )
+                    prompt_tokens = sum([len(tokenizer.encode(message.content)) for message in prompt])
                 else:
                     prompt_tokens = len(tokenizer.encode(prompt))
 
@@ -201,10 +194,7 @@ class GPT3Model:
                 " `max_gen_len`"
             )
 
-        total_price = (
-            prompt_tokens * price_per_1k_input
-            + completion_tokens * price_per_1k_output
-        ) / 1_000
+        total_price = (prompt_tokens * price_per_1k_input + completion_tokens * price_per_1k_output) / 1_000
         return total_price
 
     def extract_text(self, response):
@@ -215,7 +205,16 @@ class GPT3Model:
         else:
             return response.choices[0].text
 
-    def prompt_with_cache(self, params):
+    def get_key(self, params: dict) -> str:
+        """Creates a dict that is serialized to a json string"""
+        _key = {k: v for k, v in params.items() if k not in {"user", "prompt", "messages"}}
+        if self.is_chat_model:
+            _key["messages"] = [m for m in params["messages"]]
+        else:
+            _key["prompt"] = params["prompt"]
+        return json.dumps(_key, sort_keys=True)  # sort keys for consistent serialization
+
+    def prompt_with_cache(self, params, cache_state: Optional[CacheState] = None):
         """Send a request to the API with the given params if they haven't been used yet.
 
         This is done by creating a unique key based on the params dict and having the cache handle running
@@ -225,18 +224,7 @@ class GPT3Model:
             params (dict): The parameters used to prompt the model with.
         """
 
-        key = "-".join(
-            [
-                f"{param_k}_{param_v}"
-                for param_k, param_v in params.items()
-                if param_k not in {"user", "prompt"}
-            ]
-        )
-        if self.is_chat_model:
-            for message in params["messages"]:
-                key += f"-msg_r_{message['role']}_c_{message['content']}"
-        else:
-            key += f"-prompt_{params['prompt']}"  # [:100]  # that should be enough, right?
+        key = self.get_key(params)
 
         def prompt():
             # GPT4 has a lower rate-limit.
@@ -250,17 +238,13 @@ class GPT3Model:
                 else:
                     response = openai.Completion.create(**params)
             except openai.error.InvalidRequestError:
-                print(
-                    "Stopping to investigate why there was an invalid request to the API..."
-                )
+                print("Stopping to investigate why there was an invalid request to the API...")
                 breakpoint()
             return response.to_dict_recursive()
 
-        return self.cache.query(key, prompt)
+        return self.cache.query(key, prompt, cache_state=cache_state)
 
-    def __call__(
-        self, text_prompt: Union[str, List[OpenAIChatMessage]]
-    ) -> ModelResponse:
+    def __call__(self, text_prompt: Union[str, List[OpenAIChatMessage]], cache_state=None) -> ModelResponse:
         """Perform inference on the model with the given prompt.
 
         Overwrite the params with the given prompt. For Chat models, use a simple system message and put the
@@ -268,7 +252,7 @@ class GPT3Model:
         params = {k: v for k, v in self.params.items()}
         params["prompt"] = text_prompt
 
-        response = self.prompt_with_cache(params)
+        response = self.prompt_with_cache(params, cache_state=cache_state)
 
         if self.is_anthropic_model:
             result = AnthropicResponse.parse_obj(response)
@@ -294,7 +278,7 @@ class GPT3ChatModel(GPT3Model):
         self.chat_model = True
 
     def __call__(
-        self, messages_prompt: Union[str, List[OpenAIChatMessage]]
+        self, messages_prompt: Union[str, List[OpenAIChatMessage]], cache_state: Optional[CacheState] = None
     ) -> Union[OpenAIChatResponse, OpenAICompletionResponse]:  # type: ignore[override]
         params = {k: v for k, v in self.params.items()}
         params.pop("logprobs")
@@ -307,11 +291,9 @@ class GPT3ChatModel(GPT3Model):
                 {"role": "user", "content": messages_prompt},
             ]
         else:
-            params["messages"] = [
-                message.dict() for message in messages_prompt
-            ]
+            params["messages"] = [message.dict() for message in messages_prompt]
 
-        response = self.prompt_with_cache(params)
+        response = self.prompt_with_cache(params, cache_state=cache_state)
         result = OpenAIChatResponse.parse_obj(response)
         result.cost = self.calculate_cost(
             prompt_tokens=result.usage.prompt_tokens,
@@ -342,11 +324,9 @@ class ClaudeModel(GPT3Model):
         self.is_chat_model = False
         self.is_anthropic_model = True
 
-    def prompt_with_cache(self, params):
+    def prompt_with_cache(self, params, cache_state: Optional[CacheState] = None):
         """Prompt with the anthropic library instead of the OpenAI one."""
-        key = "-".join(
-            [f"{param_k}_{param_v}" for param_k, param_v in params.items()]
-        )
+        key = "-".join([f"{param_k}_{param_v}" for param_k, param_v in params.items()])
 
         key += f"-prompt_{params['prompt']}"  # [:100]  # that should be enough, right?
 
@@ -355,13 +335,11 @@ class ClaudeModel(GPT3Model):
             try:
                 response = self.client.completion(**params)
             except anthropic.ApiException:
-                print(
-                    "Stopping so you can determine why there was an API exception."
-                )
+                print("Stopping so you can determine why there was an API exception.")
                 breakpoint()
             return response
 
-        return self.cache.query(key, prompt)
+        return self.cache.query(key, prompt, cache_state=cache_state)
 
 
 def load_model(model_name: str, **params) -> GPT3Model:

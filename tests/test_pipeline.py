@@ -1,6 +1,7 @@
 import os
 import unittest
 
+from decontext.cache import CacheState
 from decontext.data_types import PaperContext
 from decontext.pipeline import Pipeline, decontext
 from decontext.step.qa import TemplateRetrievalQAStep, TemplateFullTextQAStep
@@ -131,12 +132,9 @@ class TestPipeline(unittest.TestCase):
             "USING_GITHUB_ACTIONS" in os.environ and os.environ["USING_GITHUB_ACTIONS"] == "true"
         )
 
-
     def test_decontext_template_full_text(self):
         if self.using_github_actions:
-            self.skipTest(
-                "Skipping test_decontext_template_full_text because it requires an openai key."
-            )
+            self.skipTest("Skipping test_decontext_template_full_text because it requires an openai key.")
 
         with open("tests/fixtures/full_text.json") as f:
             full_text_json_str = f.read()
@@ -151,15 +149,21 @@ class TestPipeline(unittest.TestCase):
             ]
         )
 
-        decontextualized_snippet = decontext(self.snippet, context, pipeline=pipeline)
+        gold_decontextualized_snippet = (
+            ' "[REF0] applied the BOW+LING model [which combines bag-of-words '
+            "features and linguistic features] to millions of new unannotated posts, labeling these posts "
+            "with a probability of dogmatism according to the classifier [with a score ranging from 0 "
+            "(non-dogmatic) to 1 (dogmatic)]."
+        )
+        decontextualized_snippet = decontext(
+            self.snippet, context, pipeline=pipeline, cache_states=CacheState.ENFORCE_CACHE
+        )
+        assert decontextualized_snippet == gold_decontextualized_snippet
         print(decontextualized_snippet)
-
 
     def test_decontext_template_retrieval_one_context(self):
         if self.using_github_actions:
-            self.skipTest(
-                "Skipping test_decontext_template_retrieval because it requires an openai key."
-            )
+            self.skipTest("Skipping test_decontext_template_retrieval because it requires an openai key.")
 
         with open("tests/fixtures/full_text.json") as f:
             full_text_json_str = f.read()
@@ -174,14 +178,62 @@ class TestPipeline(unittest.TestCase):
             ]
         )
 
+        gold_decontextualized_snippet = (
+            ' "[REF0] apply the BOW+LING model [which combines unigram bag-of-words features and linguistic '
+            "features from earlier analyses] trained on the full Reddit dataset to millions of new unannotated "
+            "posts, labeling these posts with a probability of dogmatism according to the classifier [ranging "
+            'from 0=non-dogmatic to 1=dogmatic]."'
+        )
+        gold_cost = 0.06691
+
         decontext_snippet, metadata = decontext(
-            self.snippet, context, pipeline=pipeline, return_metadata=True
+            self.snippet, context, pipeline=pipeline, return_metadata=True, cache_states=CacheState.ENFORCE_CACHE
         )
         print(metadata.decontextualized_snippet)
         print(metadata.cost)
 
+        assert decontext_snippet == metadata.decontextualized_snippet == gold_decontextualized_snippet
+        assert metadata.cost == gold_cost
 
-    def test_decontext_template_retrieval_two_contexts(self):
+        # check the retrieved evidences
+        assert [[ev.index for ev in qae.evidence] for qae in metadata.qae] == [[39, 42, 40], [42, 3, 8]]
+
+    # def test_decontext_template_retrieval_two_contexts(self):
+    #     if self.using_github_actions:
+    #         self.skipTest(
+    #             "Skipping test_decontext_template_retrieval_two_contexts because it requires an openai key."
+    #         )
+
+    #     with open("tests/fixtures/full_text.json") as f:
+    #         full_text_json_str = f.read()
+
+    #     context_1 = PaperContext.parse_raw(full_text_json_str)
+
+    #     with open("tests/fixtures/full_text_2.json") as f:
+    #         full_text_2_json_str = f.read()
+
+    #     context_2 = PaperContext.parse_raw(full_text_2_json_str)
+
+    #     pipeline = Pipeline(
+    #         steps=[
+    #             TemplateQGenStep(),
+    #             TemplateRetrievalQAStep(),
+    #             TemplateSynthStep(),
+    #         ]
+    #     )
+
+    #     decontext_snippet, metadata = decontext(
+    #         self.snippet,
+    #         context_1,
+    #         additional_contexts=[context_2],
+    #         pipeline=pipeline,
+    #         return_metadata=True,
+    #     )
+
+    #     print(metadata.decontextualized_snippet)
+    #     print(metadata.cost)
+
+    def test_decontext_custom_cache_state(self):
         if self.using_github_actions:
             self.skipTest(
                 "Skipping test_decontext_template_retrieval_two_contexts because it requires an openai key."
@@ -205,12 +257,12 @@ class TestPipeline(unittest.TestCase):
             ]
         )
 
-        decontext_snippet, metadata = decontext(
-            self.snippet,
-            context_1,
-            additional_contexts=[context_2],
-            pipeline=pipeline,
-            return_metadata=True,
-        )
-        print(metadata.decontextualized_snippet)
-        print(metadata.cost)
+        with self.assertRaises(ValueError):
+            decontext_snippet, metadata = decontext(
+                "blah blah blah",  # this snippet is not in the cache
+                context_1,
+                additional_contexts=[context_2],
+                pipeline=pipeline,
+                return_metadata=True,
+                cache_states=CacheState.ENFORCE_CACHE,
+            )

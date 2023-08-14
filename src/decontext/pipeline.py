@@ -11,6 +11,7 @@ from decontext.step.qa import TemplateRetrievalQAStep, TemplateFullTextQAStep
 from decontext.step.qgen import TemplateQGenStep
 from decontext.step.synth import TemplateSynthStep
 from decontext.logging import info
+from decontext.cache import CacheState
 
 
 class Pipeline(BaseModel):
@@ -19,9 +20,9 @@ class Pipeline(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+
 # We don't want to instantiatate the pipelines here
 class RetrievalQAPipeline(Pipeline):
-
     def __init__(self, **data):
         data["steps"] = [
             TemplateQGenStep(),
@@ -31,7 +32,6 @@ class RetrievalQAPipeline(Pipeline):
 
 
 class FullTextQAPipeline(Pipeline):
-
     def __init__(self, **data):
         data["steps"] = [
             TemplateQGenStep(),
@@ -46,6 +46,7 @@ def decontext(
     additional_contexts: Optional[List[PaperContext]] = None,
     pipeline: Optional[Pipeline] = None,
     return_metadata: bool = False,
+    cache_states: Optional[Union[CacheState, List[Optional[CacheState]]]] = None,
 ) -> Union[str, Tuple[str, PaperSnippet]]:
     """Decontextualizes the snippet using the given context according to the given config.
 
@@ -56,6 +57,9 @@ def decontext(
             the snippet).
         pipeline: The pipeline to run on the snippet.
         return_metadata: Flag for returning the PaperSnippet object with intermediate outputs. (See below).
+        cache_states: The cache states to use for each step of the pipeline. If None, the default cache state
+            is used. If a single CacheState is given, it is used for all steps. If a list of CacheStates is given,
+            the ith CacheState is used for the ith step.
 
     Returns:
         string with the decontextualized version of the snippet.
@@ -77,9 +81,15 @@ def decontext(
     )
 
     # 3. Runs each component of the pipeline
-    for step in pipeline.steps:
+    # 3.1. Handle the cache states
+    if cache_states is None:
+        cache_states = [None] * len(pipeline.steps)
+    elif isinstance(cache_states, CacheState):
+        cache_states = [cache_states] * len(pipeline.steps)
+    for step, cache_state in zip(pipeline.steps, cache_states):
         info(f"Running {step.name} > ")
-        step.run(paper_snippet)
+        # step.invalidate_cache = invalidate_cache
+        step.run(paper_snippet, cache_state=cache_state)
 
     if paper_snippet.decontextualized_snippet is None:
         decontext_snippet = ""

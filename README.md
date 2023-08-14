@@ -200,6 +200,22 @@ decontext(snippet=snippet, context=context, pipeline=pipeline)
 
 The templates used to prompt OpenAI models for the default Pipeline are `yaml` files defined in `src/decontext/templates`.
 
+## Caching
+By default, all requests are cached to save credit. Responses are cached globally, regardless of user and across all requests in the file specified by `$DECONTEXT_CACHE_DIR` using the `diskcache` library. However, there are situations where you don't want to cache such as when trying to test out different parts. There are four different levels of caching, that are defined in `decontext.cache.CacheState`
+1. `NO_CACHE` - No caching is done at all
+2. `INVALIDATE` - If there's a cached response, it's ignored and the API is hit again. The new response is cached.
+3. `NORMAL` - If there's a cached response, it's returned. Otherwise the API is hit and the response is cached.
+4. `ENFORCE_CACHE` - If there's no cached response, an exception is raised.
+
+There are three ways to control the caching:
+1. At the `pipeline` level:  e.g. `decontext(snippet, context, cache_state=CacheState.ENFORCE_CACHE)` sets the cache state for all queries.
+2. A step can be initialized with a `cache_state` parameter to set the default caching behavior for the step. E.g., `TemplateQGenStep(cache_state=CacheState.ENFORCE_CACHE)`
+3. A step can be run with a `cache_state` to override its default caching behavior. E.g. `TemplateQGenStep().run(snippet, cache_state=CacheState.ENFORCE_CACHE)`.
+
+The default cache state is `CacheState.NORMAL`.
+
+Note that currently, the cost returned as part of the metadata ignores caching - the value is how much the prompt would have cost if the response was not cached.
+
 ## Function Declaration
 ```python
 def decontext(
@@ -208,6 +224,7 @@ def decontext(
     additional_contexts: Optional[List[PaperContext]] = None,
     pipeline: Optional[Pipeline] = None,
     return_metadata: bool = False,
+    cache_states: Optional[Union[CacheState, List[Optional[CacheState]]]] = None,
 ) -> Union[str, Tuple[str, PaperSnippet]]:
     """Decontextualizes the snippet using the given context according to the given config.
 
@@ -217,6 +234,9 @@ def decontext(
         additional_contexts: Additional context to use in the decontextualization (eg papers that are cited in the snippet).
         pipeline: The pipeline to run on the snippet. If not provided, a default retrieval-based pipeline will be run.
         return_metadata: Flag for returning the PaperSnippet object with intermediate outputs. (See below).
+        cache_states: The cache states to use for each step of the pipeline. If None, the default cache state
+            is used. If a single CacheState is given, it is used for all steps. If a list of CacheStates is given,
+            the ith CacheState is used for the ith step.
 
     Returns:
         string with the decontextualized version of the snippet.
