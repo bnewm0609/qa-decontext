@@ -6,12 +6,18 @@ from contextlib import ExitStack
 from importlib import resources
 from typing import Optional
 
-from shadow_scholar.app import pdod
-
 from decontext.cache import CacheState
 from decontext.data_types import PaperSnippet, Section
 from decontext.step.step import QAStep, TemplatePipelineStep
 from decontext.utils import none_check, unique
+
+
+def import_slow_modules():
+    # Not sure how reliable this is, but I think it should work.
+    # We import the module and then store it in the globals dict.
+    from shadow_scholar.app import pdod
+
+    globals()["pdod"] = pdod
 
 
 class TemplateRetrievalQAStep(TemplatePipelineStep, QAStep):
@@ -95,6 +101,7 @@ class TemplateRetrievalQAStep(TemplatePipelineStep, QAStep):
         return paper_retrieval_output_file
 
     def _run(self, snippet: PaperSnippet, cache_state: Optional[CacheState] = None):
+        import_slow_modules()
         self.retrieve(snippet)
         for question in snippet.qae:
             evidence = [
