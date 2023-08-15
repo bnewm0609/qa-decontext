@@ -15,7 +15,7 @@ dependencies = [
     "shadow-scholar==0.6.1",
     "omegaconf>=2.3.0",
     "openai==0.27.7",
-    "pydantic==1.10",
+    "pydantic>=1.10.8,<2.0",
     "tiktoken==0.4.0",
     "numpy>=1.23.2",
     "spacy>=3.4.1",
