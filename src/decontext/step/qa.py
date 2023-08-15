@@ -12,14 +12,6 @@ from decontext.step.step import QAStep, TemplatePipelineStep
 from decontext.utils import none_check, unique
 
 
-def import_slow_modules():
-    # Not sure how reliable this is, but I think it should work.
-    # We import the module and then store it in the globals dict.
-    from shadow_scholar.app import pdod
-
-    globals()["pdod"] = pdod
-
-
 class TemplateRetrievalQAStep(TemplatePipelineStep, QAStep):
     """Template step that does retrieval"""
 
@@ -70,6 +62,8 @@ class TemplateRetrievalQAStep(TemplatePipelineStep, QAStep):
 
         # 3. run retrieval
         try:
+            from shadow_scholar.app import pdod
+
             ranker_kwargs = {"model_name_or_path": "facebook/contriever"}
             pdod.main.run_pdod(
                 "dense",
@@ -101,7 +95,6 @@ class TemplateRetrievalQAStep(TemplatePipelineStep, QAStep):
         return paper_retrieval_output_file
 
     def _run(self, snippet: PaperSnippet, cache_state: Optional[CacheState] = None):
-        import_slow_modules()
         self.retrieve(snippet)
         for question in snippet.qae:
             evidence = [
