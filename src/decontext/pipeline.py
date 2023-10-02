@@ -24,20 +24,24 @@ class Pipeline(BaseModel):
 # We don't want to instantiatate the pipelines here
 class RetrievalQAPipeline(Pipeline):
     def __init__(self, **data):
-        data["steps"] = [
+        steps = [
             TemplateQGenStep(),
             TemplateRetrievalQAStep(),
             TemplateSynthStep(),
         ]
+        data["steps"] = steps
+        super().__init__(steps=steps)
 
 
 class FullTextQAPipeline(Pipeline):
     def __init__(self, **data):
-        data["steps"] = [
+        steps = [
             TemplateQGenStep(),
             TemplateFullTextQAStep(),
             TemplateSynthStep(),
         ]
+        data["steps"] = steps
+        super().__init__(steps=steps)
 
 
 def decontext(
