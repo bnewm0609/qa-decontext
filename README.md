@@ -5,6 +5,8 @@ This repository contains the code for running experiments from the paper: __A Qu
 2. Models behind APIs (OpenAI, Claude).
 3. End-to-end methods and a pipeline-based method (in which we generate clarifying questions, answer them and rewrite the snippets to include the answers).
 
+For a pip-installable package to run decontextualization on your own data, please see the [`main`](https://github.com/bnewm0609/qa-decontextualization) branch.
+
 ## Installation
 Install by running:
 ```
